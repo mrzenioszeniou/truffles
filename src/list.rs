@@ -6,37 +6,43 @@ use scraper::{
 
 use crate::cond::Condition;
 
-
 #[derive(Debug)]
-pub enum Listing {
+pub struct Listing {
 
-  Apartment {
-    /// Unique Identifier
-    id: String,
-    /// Price in EUR
-    price: u32,
-    /// Size in sq. meters
-    size: u32,
-    /// Condition
-    cond: Option<Condition>,
-    /// Floor #
-    floor: Option<u8>,
-    /// Year of constructon
-    year: Option<u32>,
-  }
+  /// Unique Identifier
+  id: String,
+  /// Price in EUR
+  price: u32,
+  /// Area in sq. meters
+  area: u32,
+  /// Condition
+  cond: Option<Condition>,
+  /// Floor #
+  floor: Option<u8>,
+  /// Year of constructon
+  year: Option<u32>,
+  /// # of bedrooms
+  n_bedrooms: Option<u8>,
+  /// # of bathrooms
+  n_bathrooms: Option<u8>,
+  /// Postal Code
+  post_code: Option<u32>,
 
 }
 
 impl Default for Listing {
   
   fn default() -> Self {
-    return Self::Apartment {
+    return Self {
       id: String::from("FOOBAR"),
       price: 42000,
-      size: 42,
-      cond: Some(Condition::New),
-      floor: Some(42),
-      year: Some(4242),
+      area: 42,
+      cond: None,
+      floor: None,
+      year: None,
+      n_bedrooms: None,
+      n_bathrooms: None,
+      post_code: None,
     };
   }
 
@@ -60,16 +66,13 @@ impl From<&Html> for Listing {
     let price_str:&str= html.select(&price_sel).next().unwrap().value().attr("content").unwrap();
     let price:u32 = price_str.parse::<f32>().unwrap() as u32;
 
-
-    // Get characteristics div
     let size_sel = Selector::parse("div.announcement-characteristics").unwrap();
     let div = html.select(&size_sel).next().unwrap().inner_html();
 
-
     // Parse size
     let re = Regex::new(r"([0-9]+) m²").unwrap();
-    let size_str = &re.captures(&div).unwrap()[1];
-    let size:u32 = size_str.parse::<f32>().unwrap() as u32;
+    let area_str = &re.captures(&div).unwrap()[1];
+    let area:u32 = area_str.parse::<f32>().unwrap() as u32;
 
     // Parse condition
     let cond = if Regex::new(r"[Rr]esale").unwrap().find(&div).is_some() {
@@ -82,14 +85,20 @@ impl From<&Html> for Listing {
       None
     };
 
-    
-    println!("id: {:?}", id);
-    println!("price: {:?}", price);
-    println!("size: {:?}", size);
-    println!("cond: {:?}", cond);
+    // Parse 
 
 
-    return Listing::default();
+    return Listing {
+      id,
+      price,
+      area,
+      cond,
+      floor: None,
+      n_bathrooms: None,
+      n_bedrooms: None,
+      post_code: None,
+      year: None,
+    };
   }
 
 }

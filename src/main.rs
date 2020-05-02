@@ -1,6 +1,9 @@
 mod list;
 mod cond;
 
+extern crate regex;
+extern crate scraper;
+
 use std::fs::File;
 use std::io::Read;
 
