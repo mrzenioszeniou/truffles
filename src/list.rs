@@ -5,12 +5,18 @@ use scraper::{
 };
 
 use crate::cond::Condition;
+use crate::kind::Kind;
+use crate::search::Search;
+
+use std::iter::Iterator;
 
 #[derive(Debug)]
 pub struct Listing {
 
   /// Unique Identifier
   id: String,
+  /// Property Type
+  kind: Kind,
   /// Price in EUR
   price: u32,
   /// Area in sq. meters
@@ -35,6 +41,7 @@ impl Default for Listing {
   fn default() -> Self {
     return Self {
       id: String::from("FOOBAR"),
+      kind: Kind::Villa,
       price: 42000,
       area: 42,
       cond: None,
@@ -52,10 +59,14 @@ impl From<&Html> for Listing {
 
   fn from(html :&Html) -> Self {
 
+    // Common regular expressions
+    let re_int = Regex::new(r"[0-9]+").unwrap();
+
     // Common selectors
     let ul_sel = Selector::parse("ul").unwrap();
     let li_sel = Selector::parse("li").unwrap();
     let a_sel = Selector::parse("a").unwrap();
+    let span_sel = Selector::parse("span").unwrap();
 
     // Parse UID
     let id_sel:Selector = Selector::parse("span[itemprop=\"sku\"").unwrap();
@@ -67,35 +78,56 @@ impl From<&Html> for Listing {
     let price:u32 = price_str.parse::<f32>().unwrap() as u32;
 
     let size_sel = Selector::parse("div.announcement-characteristics").unwrap();
-    let div = html.select(&size_sel).next().unwrap().inner_html();
+    let div = html.select(&size_sel).next().unwrap();
+    let div_html = div.inner_html();
+
+    // Parse property kind
+    let kind = Kind::search(&div_html).ok_or("Couldn't parse kind").unwrap();
 
     // Parse size
-    let re = Regex::new(r"([0-9]+) m²").unwrap();
-    let area_str = &re.captures(&div).unwrap()[1];
+    let re_size = Regex::new(r"([0-9]+) m²").unwrap();
+    let area_str = &re_size.captures(&div_html).unwrap()[1];
     let area:u32 = area_str.parse::<f32>().unwrap() as u32;
 
     // Parse condition
-    let cond = if Regex::new(r"[Rr]esale").unwrap().find(&div).is_some() {
-      Some(Condition::Resale)
-    } else if Regex::new(r"[Bb]rand\s+[Nn]ew").unwrap().find(&div).is_some() {
-      Some(Condition::New)
-    } else if Regex::new(r"[Uu]nder\s+[Cc]onstruction").unwrap().find(&div).is_some() {
-      Some(Condition::UnderConstruction)
+    let cond = Condition::search(&div_html);
+
+    // Parse bedrooms
+    let n_bedrooms = if Regex::new(r"[Ss]tudio").unwrap().find(&div_html).is_some() {
+      Some(0)
     } else {
-      None
+      let re_bedrooms = Regex::new(r"[Bb]edrooms*").unwrap();
+      div.select(&li_sel)
+          .filter( |li| re_bedrooms.find(&li.inner_html()).is_some())
+          .next()
+          .map(|li| li.select(&a_sel).next().unwrap().inner_html().trim().parse().unwrap())
     };
 
-    // Parse 
+    // Parse bathrooms
+    let re_bathrooms = Regex::new(r"[Bb]athrooms*").unwrap();
+    let n_bathrooms = div.select(&li_sel)
+        .filter( |li| re_bathrooms.find(&li.inner_html()).is_some())
+        .next()
+        .map(|li| 
+          li.select(&span_sel)
+            .filter(|span| re_int.find(&span.inner_html()).is_some())
+            .next()
+            .map(|span| {
+              let str_bathrooms = span.inner_html();
+              str_bathrooms.trim().parse().unwrap()
+            })
+          ).flatten();
 
 
     return Listing {
       id,
+      kind,
       price,
       area,
       cond,
       floor: None,
-      n_bathrooms: None,
-      n_bedrooms: None,
+      n_bedrooms: n_bedrooms,
+      n_bathrooms: n_bathrooms,
       post_code: None,
       year: None,
     };

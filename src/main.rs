@@ -1,5 +1,7 @@
 mod list;
 mod cond;
+mod kind;
+mod search;
 
 extern crate regex;
 extern crate scraper;
@@ -13,13 +15,17 @@ use scraper::Html;
 use list::Listing;
 
 
-fn main() {
+fn main() -> Result<(), String> {
 
-  let mut file : File = File::open("res/listing_1.html").unwrap();
+  let paths = vec!["res/listing_1.html", "res/listing_2.html"];
 
-  let mut content = String::new();
-  file.read_to_string(&mut content).unwrap();
-  let document : Html = Html::parse_document(&content);
+  for path in paths.iter() {
+    let mut content = String::new();
+    let mut file = File::open(path).or(Err(format!("Couldn't open {}", path)))?;
+    file.read_to_string(&mut content).or(Err(format!("Couldn't read {}", path)))?;
+    let document = Html::parse_document(&content);
+    println!("{}: {:?}", path,  Listing::from(&document))
+  }
 
-  println!("{:?}", Listing::from(&document));
+  Ok(())
 }
