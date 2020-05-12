@@ -60,7 +60,6 @@ impl From<&Html> for Listing {
     let re_int = Regex::new(r"[0-9]+").unwrap();
 
     // Common selectors
-    let ul_sel = Selector::parse("ul").unwrap();
     let li_sel = Selector::parse("li").unwrap();
     let a_sel = Selector::parse("a").unwrap();
     let span_sel = Selector::parse("span").unwrap();
@@ -106,7 +105,7 @@ impl From<&Html> for Listing {
     // Parse bathrooms
     let re_bathrooms = Regex::new(r"[Bb]athrooms*").unwrap();
     let n_bathrooms = chars.select(&li_sel)
-        .filter( |li| re_bathrooms.find(&li.inner_html()).is_some())
+        .filter(|li| re_bathrooms.find(&li.inner_html()).is_some())
         .next()
         .map(|li| 
           li.select(&span_sel)
@@ -117,6 +116,21 @@ impl From<&Html> for Listing {
               str_bathrooms.trim().parse().unwrap()
             })
           ).flatten();
+
+    // Parse post code
+    let re_post = Regex::new(r"[Pp]ostal\s+[Cc]ode").unwrap();
+    let post_code = chars.select(&li_sel)
+        .filter(|li| re_post.find(&li.inner_html()).is_some())
+        .next()
+        .map(|li| 
+          li.select(&span_sel)
+          .filter(|span| re_int.find(&span.inner_html()).is_some())
+          .next()
+          .map(|span| {
+            let str_post_code = span.inner_html();
+            str_post_code.trim().parse().unwrap()
+          })
+        ).flatten();
 
     // Parse year
     let re_year = Regex::new(r"(20[0-9][0-9])|(19[0-9][0-9])").unwrap();
@@ -130,7 +144,7 @@ impl From<&Html> for Listing {
       cond,
       n_bedrooms,
       n_bathrooms,
-      post_code: None,
+      post_code,
       year: year,
     };
   }
