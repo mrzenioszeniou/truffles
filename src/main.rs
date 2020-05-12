@@ -17,7 +17,11 @@ use list::Listing;
 
 fn main() -> Result<(), String> {
 
-  let paths = vec!["res/listing_1.html", "res/listing_2.html"];
+  let paths = vec![
+    "res/listing_1.html",
+    "res/listing_2.html",
+    "res/listing_3.html",
+  ];
 
   for path in paths.iter() {
     let mut content = String::new();

@@ -20,7 +20,7 @@ pub struct Listing {
   /// Price in EUR
   price: u32,
   /// Area in sq. meters
-  area: u32,
+  area: Option<u32>,
   /// Condition
   cond: Option<Condition>,
   /// Floor #
@@ -43,7 +43,7 @@ impl Default for Listing {
       id: String::from("FOOBAR"),
       kind: Kind::Villa,
       price: 42000,
-      area: 42,
+      area: None,
       cond: None,
       floor: None,
       year: None,
@@ -77,27 +77,26 @@ impl From<&Html> for Listing {
     let price_str:&str= html.select(&price_sel).next().unwrap().value().attr("content").unwrap();
     let price:u32 = price_str.parse::<f32>().unwrap() as u32;
 
-    let size_sel = Selector::parse("div.announcement-characteristics").unwrap();
-    let div = html.select(&size_sel).next().unwrap();
-    let div_html = div.inner_html();
+    let chars_sel = Selector::parse("div.announcement-characteristics").unwrap();
+    let chars = html.select(&chars_sel).next().unwrap();
+    let chars_html = chars.inner_html();
 
     // Parse property kind
-    let kind = Kind::search(&div_html).ok_or("Couldn't parse kind").unwrap();
+    let kind = Kind::search(&chars_html).ok_or("Couldn't parse kind").unwrap();
 
     // Parse size
     let re_size = Regex::new(r"([0-9]+) m²").unwrap();
-    let area_str = &re_size.captures(&div_html).unwrap()[1];
-    let area:u32 = area_str.parse::<f32>().unwrap() as u32;
+    let area = re_size.captures(&chars_html).map(|g| g[1].parse::<f32>().map(|a| a as u32).ok() ).flatten();
 
     // Parse condition
-    let cond = Condition::search(&div_html);
+    let cond = Condition::search(&chars_html);
 
     // Parse bedrooms
-    let n_bedrooms = if Regex::new(r"[Ss]tudio").unwrap().find(&div_html).is_some() {
+    let n_bedrooms = if Regex::new(r"[Ss]tudio").unwrap().find(&chars_html).is_some() {
       Some(0)
     } else {
       let re_bedrooms = Regex::new(r"[Bb]edrooms*").unwrap();
-      div.select(&li_sel)
+      chars.select(&li_sel)
           .filter( |li| re_bedrooms.find(&li.inner_html()).is_some())
           .next()
           .map(|li| li.select(&a_sel).next().unwrap().inner_html().trim().parse().unwrap())
@@ -105,7 +104,7 @@ impl From<&Html> for Listing {
 
     // Parse bathrooms
     let re_bathrooms = Regex::new(r"[Bb]athrooms*").unwrap();
-    let n_bathrooms = div.select(&li_sel)
+    let n_bathrooms = chars.select(&li_sel)
         .filter( |li| re_bathrooms.find(&li.inner_html()).is_some())
         .next()
         .map(|li| 
