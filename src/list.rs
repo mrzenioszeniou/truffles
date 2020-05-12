@@ -23,8 +23,6 @@ pub struct Listing {
   area: Option<u32>,
   /// Condition
   cond: Option<Condition>,
-  /// Floor #
-  floor: Option<u8>,
   /// Year of constructon
   year: Option<u32>,
   /// # of bedrooms
@@ -45,7 +43,6 @@ impl Default for Listing {
       price: 42000,
       area: None,
       cond: None,
-      floor: None,
       year: None,
       n_bedrooms: None,
       n_bathrooms: None,
@@ -77,16 +74,20 @@ impl From<&Html> for Listing {
     let price_str:&str= html.select(&price_sel).next().unwrap().value().attr("content").unwrap();
     let price:u32 = price_str.parse::<f32>().unwrap() as u32;
 
+    // Get useful html handles
     let chars_sel = Selector::parse("div.announcement-characteristics").unwrap();
     let chars = html.select(&chars_sel).next().unwrap();
     let chars_html = chars.inner_html();
+    let desc_sel = Selector::parse("div.announcement-description").unwrap();
+    let desc = html.select(&desc_sel).next().unwrap();
+    let desc_html = desc.inner_html();
 
     // Parse property kind
     let kind = Kind::search(&chars_html).ok_or("Couldn't parse kind").unwrap();
 
     // Parse size
     let re_size = Regex::new(r"([0-9]+) m²").unwrap();
-    let area = re_size.captures(&chars_html).map(|g| g[1].parse::<f32>().map(|a| a as u32).ok() ).flatten();
+    let area = re_size.captures(&chars_html).map(|g| g[1].parse::<f32>().map(|a| a as u32).ok()).flatten();
 
     // Parse condition
     let cond = Condition::search(&chars_html);
@@ -117,6 +118,9 @@ impl From<&Html> for Listing {
             })
           ).flatten();
 
+    // Parse year
+    let re_year = Regex::new(r"(20[0-9][0-9])|(19[0-9][0-9])").unwrap();
+    let year = re_year.captures_iter(&desc_html).filter_map(|c| c[0].parse::<u32>().ok()).min();
 
     return Listing {
       id,
@@ -124,11 +128,10 @@ impl From<&Html> for Listing {
       price,
       area,
       cond,
-      floor: None,
-      n_bedrooms: n_bedrooms,
-      n_bathrooms: n_bathrooms,
+      n_bedrooms,
+      n_bathrooms,
       post_code: None,
-      year: None,
+      year: year,
     };
   }
 

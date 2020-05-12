@@ -28,7 +28,7 @@ fn main() -> Result<(), String> {
     let mut file = File::open(path).or(Err(format!("Couldn't open {}", path)))?;
     file.read_to_string(&mut content).or(Err(format!("Couldn't read {}", path)))?;
     let document = Html::parse_document(&content);
-    println!("{}: {:?}", path,  Listing::from(&document))
+    println!("{}: {:?}\n", path,  Listing::from(&document))
   }
 
   Ok(())
