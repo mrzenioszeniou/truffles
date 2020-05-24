@@ -4,6 +4,7 @@ use scraper::{
   Html,
   Selector,
 };
+use crate::throttle::Throttler;
 
 #[derive(Debug)]
 pub enum Website {
@@ -13,11 +14,9 @@ pub enum Website {
 }
 
 impl fmt::Display for Website {
-
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       write!(f, "{:?}", self)
   }
-
 }
 
 
@@ -38,12 +37,13 @@ impl Website {
 
   pub async fn get_listing_urls(&self) -> Vec<Url> {
     let mut ret = vec![];
+    let mut throttler = Throttler::new(None);
 
     for search_url in self.get_search_roots().into_iter() {
-
+      throttler.tick();
+      println!("INFO: Expanding root result page '{}'", search_url);
       match reqwest::get(search_url.clone()).await {
         Ok(response) => {
-
           let content = response.text().await.expect("Couldn't get text from response");
           let html = Html::parse_document(&content);
           match self {

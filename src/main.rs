@@ -7,7 +7,6 @@ extern crate tokio;
 mod listing;
 mod cond;
 mod kind;
-mod scrape;
 mod search;
 mod site;
 mod throttle;
@@ -15,10 +14,11 @@ mod throttle;
 use std::fs::File;
 use std::io::Read;
 
+use reqwest::Url;
 use scraper::Html;
 
-use listing::Listing;
-
+use crate::listing::Listing;
+use crate::site::Website;
 
 
 #[tokio::main]
@@ -38,7 +38,10 @@ async fn main() -> Result<(), String> {
     println!("{}: {:?}\n", path,  Listing::from(&document));
   }
 
-  // scrape::scrape(Website::Bazaraki, None).await;
+  // let res_pages:Vec<Url> = Website::Bazaraki.get_listing_urls().await;
+  // for each in res_pages.iter() {
+  //   println!("{}", each);
+  // }
 
   Ok(())
 }
