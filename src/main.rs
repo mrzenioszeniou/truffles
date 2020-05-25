@@ -13,9 +13,13 @@ mod throttle;
 
 use std::fs::File;
 use std::io::Read;
+use std::str::FromStr;
 
 use reqwest::Url;
-use scraper::Html;
+use scraper::{
+  Html,
+  Selector,
+};
 
 use crate::listing::Listing;
 use crate::site::Website;
@@ -39,9 +43,6 @@ async fn main() -> Result<(), String> {
   }
 
   // let res_pages:Vec<Url> = Website::Bazaraki.get_listing_urls().await;
-  // for each in res_pages.iter() {
-  //   println!("{}", each);
-  // }
 
   Ok(())
 }
