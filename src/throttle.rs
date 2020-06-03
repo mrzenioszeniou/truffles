@@ -11,7 +11,7 @@ impl Throttler {
   pub fn new(interval: Option<Duration>) -> Self {
     Self {
       last: None,
-      interval: interval.unwrap_or(Duration::from_secs(1)),
+      interval: interval.unwrap_or(Duration::from_secs(5)),
     }
   }
 

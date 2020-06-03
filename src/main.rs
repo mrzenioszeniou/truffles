@@ -3,6 +3,7 @@ extern crate regex;
 extern crate reqwest;
 extern crate scraper;
 extern crate tokio;
+extern crate indicatif;
 
 mod listing;
 mod cond;
@@ -15,6 +16,10 @@ use std::fs::File;
 use std::io::Read;
 use std::str::FromStr;
 
+use indicatif::{
+  ProgressBar,
+  ProgressStyle,
+};
 use reqwest::Url;
 use scraper::{
   Html,
@@ -41,7 +46,7 @@ async fn main() -> Result<(), String> {
     let document = Html::parse_document(&content);
     println!("{}: {:?}\n", path,  Listing::from(&document));
   }
-
+  
   // let res_pages:Vec<Url> = Website::Bazaraki.get_listing_urls().await;
 
   Ok(())

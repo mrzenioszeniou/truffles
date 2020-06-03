@@ -1,4 +1,8 @@
 use std::fmt;
+use indicatif::{
+  ProgressBar,
+  ProgressStyle,
+};
 use reqwest::Url;
 use scraper::{
   Html,
@@ -46,12 +50,17 @@ impl Website {
     let mut throttler = Throttler::new(None);
 
     let mut result_urls = vec![];
+    let bar = ProgressBar::new(self.get_search_roots().len() as u64);
+    bar.set_style(
+      ProgressStyle::default_bar()
+        .template("Snooping result pages   {bar:40} {percent:>3}% in {elapsed}")
+        .progress_chars("▓░░"));
+      bar.enable_steady_tick(1000);
     for search_url in self.get_search_roots().into_iter() {
       throttler.tick();
-      println!("INFO: Expanding root result page '{}'", search_url);
       match reqwest::get(search_url.clone()).await {
         Ok(response) => {
-          let content = response.text().await.expect("Couldn't get text from response");
+          let content = response.text().await.expect("Couldn't get text from response\n");
           let html = Html::parse_document(&content);
           match self {
             Website::Bazaraki => {
@@ -60,20 +69,28 @@ impl Website {
                 Some(n_pages) => for i in 1..=n_pages {
                   result_urls.push(Url::parse(&format!("{}&page={}", search_url, i)).expect("Couldn't construct URL"));
                 },
-                None => println!("Couldn't get number of result pages from {}", search_url),
+                None => println!("Couldn't get number of result pages from {}\n", search_url),
               }
             },
             _ => unimplemented!(),
           }
         },
-        Err(e) => println!("Couldn't get response from {}:{}", self, e),
+        Err(e) => println!("Couldn't get response from {}:{}\n", self, e),
       }
+      bar.inc(1);
     }
+    bar.finish();
 
     let mut listing_urls = vec![];
     let n_results = result_urls.len();
     let root_url = self.get_root_url();
-    for (i, result_url) in result_urls.iter().enumerate() {
+    let bar = ProgressBar::new(n_results as u64);
+    bar.set_style(
+      ProgressStyle::default_bar()
+        .template("Collecting listing URLs {bar:40} {percent:>3}% in {elapsed}")
+        .progress_chars("▓░░"));
+    bar.enable_steady_tick(1000);
+    for result_url in result_urls.iter() {
       throttler.tick();
       match reqwest::get(result_url.clone()).await {
         Ok(response) => {
@@ -88,17 +105,18 @@ impl Website {
                   Ok(url) => {
                     listing_urls.push(url);
                   },
-                  Err(e) => println!("Couldn't parse {} as URL:{}",url_str,e),
+                  Err(e) => println!("Couldn't parse {} as URL:{}\n",url_str,e),
                 }
               }
             },
             _ => unimplemented!(),
           }
         },
-        Err(e) => println!("Couldn't get response from {}:{}", self, e),
+        Err(e) => println!("Couldn't get response from {}:{}\n", self, e),
       }
-      println!("INFO: {}% of listing URLs acquired", 100 * i / n_results as usize);
+      bar.inc(1);
     }
+    bar.finish();
 
     listing_urls
   }
