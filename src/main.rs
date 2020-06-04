@@ -14,17 +14,9 @@ mod throttle;
 
 use std::fs::File;
 use std::io::Read;
-use std::str::FromStr;
 
-use indicatif::{
-  ProgressBar,
-  ProgressStyle,
-};
 use reqwest::Url;
-use scraper::{
-  Html,
-  Selector,
-};
+use scraper::Html;
 
 use crate::listing::Listing;
 use crate::site::Website;

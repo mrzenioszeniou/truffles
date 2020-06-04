@@ -3,12 +3,18 @@ use indicatif::{
   ProgressBar,
   ProgressStyle,
 };
-use reqwest::Url;
+use reqwest::{
+  Client,
+  Url,
+};
 use scraper::{
   Html,
   Selector,
 };
 use crate::throttle::Throttler;
+
+const HEADER_KEY:&str = "User-Agent";
+const HEADER_VALUE:&str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36";
 
 #[derive(Debug)]
 pub enum Website {
@@ -47,6 +53,7 @@ impl Website {
   }
 
   pub async fn get_listing_urls(&self) -> Vec<Url> {
+    let client:Client = Client::new();
     let mut throttler = Throttler::new(None);
 
     let mut result_urls = vec![];
@@ -58,7 +65,7 @@ impl Website {
       bar.enable_steady_tick(1000);
     for search_url in self.get_search_roots().into_iter() {
       throttler.tick();
-      match reqwest::get(search_url.clone()).await {
+      match client.get(search_url.clone()).header(HEADER_KEY, HEADER_VALUE).send().await {
         Ok(response) => {
           let content = response.text().await.expect("Couldn't get text from response\n");
           let html = Html::parse_document(&content);
@@ -92,7 +99,7 @@ impl Website {
     bar.enable_steady_tick(1000);
     for result_url in result_urls.iter() {
       throttler.tick();
-      match reqwest::get(result_url.clone()).await {
+      match client.get(result_url.clone()).header(HEADER_KEY, HEADER_VALUE).send().await {
         Ok(response) => {
           let content = response.text().await.expect("Couldn't get text from response");
           let html = Html::parse_document(&content);
