@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::search::Search;
+use crate::lookup::Lookup;
 
 #[derive(Debug)]
 pub enum Condition {
@@ -22,9 +22,9 @@ impl From<&str> for Condition {
 
 }
 
-impl Search for Condition {
+impl Lookup for Condition {
 
-  fn search(from: &str) -> Option<Self> {
+  fn lookup(from: &str) -> Option<Self> {
     if Regex::new(r"[Rr]esale").unwrap().find(from).is_some() {
       Some(Condition::Resale)
     } else if Regex::new(r"[Bb]rand\s+[Nn]ew").unwrap().find(from).is_some() {

@@ -1,26 +1,15 @@
-use std::fmt;
-use indicatif::{
-  ProgressBar,
-  ProgressStyle,
-};
-use reqwest::{
-  Client,
-  Url,
-};
-use scraper::{
-  Html,
-  Selector,
-};
-use crate::throttle::Throttler;
+use reqwest::Url;
 
-const HEADER_KEY:&str = "User-Agent";
-const HEADER_VALUE:&str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36";
+use std::fmt;
+
+use crate::area::Area;
+
 
 #[derive(Debug)]
 pub enum Website {
   Bazaraki,
-  Spitogatos,
-  ImmobilienScout,
+  _Spitogatos,
+  _ImmobilienScout,
 }
 
 impl fmt::Display for Website {
@@ -32,102 +21,31 @@ impl fmt::Display for Website {
 
 impl Website {
 
-  fn get_root_url(&self) -> Url {
+  pub fn get_root(&self) -> Url {
     match self {
       Self::Bazaraki => Url::parse("https://www.bazaraki.com").unwrap(),
-      Self::ImmobilienScout | Self::Spitogatos => unimplemented!(),
+      _ => unimplemented!(),
     }
   }
 
-  fn get_search_roots(&self) -> Vec<Url> {
+  pub fn get_search_root(&self, area:&Area) -> Url {
     match self {
-      Self::Bazaraki => vec![
-        Url::parse("https://www.bazaraki.com/real-estate/houses-and-villas-sale/lemesos-district-limassol/?ordering=newest").unwrap(),
-        Url::parse("https://www.bazaraki.com/real-estate/houses-and-villas-sale/ammochostos-district/?ordering=newest").unwrap(),
-        Url::parse("https://www.bazaraki.com/real-estate/houses-and-villas-sale/larnaka-district-larnaca/?ordering=newest").unwrap(),
-        Url::parse("https://www.bazaraki.com/real-estate/houses-and-villas-sale/lefkosia-district-nicosia/?ordering=newest").unwrap(),
-        Url::parse("https://www.bazaraki.com/real-estate/houses-and-villas-sale/pafos-district-paphos/?ordering=newest").unwrap(),
-      ],
-      Self::ImmobilienScout | Self::Spitogatos => unimplemented!(),
+      Self::Bazaraki => match area {
+        Area::Ammochostos => Url::parse("https://www.bazaraki.com/real-estate/houses-and-villas-sale/ammochostos-district/?ordering=newest").unwrap(),
+        Area::Larnaka => Url::parse("https://www.bazaraki.com/real-estate/houses-and-villas-sale/larnaka-district-larnaca/?ordering=newest").unwrap(),
+        Area::Lefkosia => Url::parse("https://www.bazaraki.com/real-estate/houses-and-villas-sale/lefkosia-district-nicosia/?ordering=newest").unwrap(),
+        Area::Limassol => Url::parse("https://www.bazaraki.com/real-estate/houses-and-villas-sale/lemesos-district-limassol/?ordering=newest").unwrap(),
+        Area::Paphos => Url::parse("https://www.bazaraki.com/real-estate/houses-and-villas-sale/pafos-district-paphos/?ordering=newest").unwrap(),
+      },
+      _ => unimplemented!(),
     }
   }
 
-  pub async fn get_listing_urls(&self) -> Vec<Url> {
-    let client:Client = Client::new();
-    let mut throttler = Throttler::new(None);
-
-    let mut result_urls = vec![];
-    let bar = ProgressBar::new(self.get_search_roots().len() as u64);
-    bar.set_style(
-      ProgressStyle::default_bar()
-        .template("Snooping result pages   {bar:40} {percent:>3}% in {elapsed}")
-        .progress_chars("▓░░"));
-      bar.enable_steady_tick(1000);
-    for search_url in self.get_search_roots().into_iter() {
-      throttler.tick();
-      match client.get(search_url.clone()).header(HEADER_KEY, HEADER_VALUE).send().await {
-        Ok(response) => {
-          let content = response.text().await.expect("Couldn't get text from response\n");
-          let html = Html::parse_document(&content);
-          match self {
-            Website::Bazaraki => {
-              let sel = Selector::parse("a.page-number.js-page-filter").expect("");
-              match html.select(&sel).filter_map(|a| a.inner_html().parse::<u32>().ok()).max() {
-                Some(n_pages) => for i in 1..=n_pages {
-                  result_urls.push(Url::parse(&format!("{}&page={}", search_url, i)).expect("Couldn't construct URL"));
-                },
-                None => println!("Couldn't get number of result pages from {}\n", search_url),
-              }
-            },
-            _ => unimplemented!(),
-          }
-        },
-        Err(e) => println!("Couldn't get response from {}:{}\n", self, e),
-      }
-      bar.inc(1);
+  pub fn get_search_roots(&self) -> Vec<Url> {
+    match self {
+      Self::Bazaraki => Area::all().iter().map(|a| self.get_search_root(a)).collect(),
+      _ => unimplemented!(),
     }
-    bar.finish();
-
-    let mut listing_urls = vec![];
-    let n_results = result_urls.len();
-    let root_url = self.get_root_url();
-    let bar = ProgressBar::new(n_results as u64);
-    bar.set_style(
-      ProgressStyle::default_bar()
-        .template("Collecting listing URLs {bar:40} {percent:>3}% in {elapsed}")
-        .progress_chars("▓░░"));
-    bar.enable_steady_tick(1000);
-    for result_url in result_urls.iter() {
-      throttler.tick();
-      match client.get(result_url.clone()).header(HEADER_KEY, HEADER_VALUE).send().await {
-        Ok(response) => {
-          let content = response.text().await.expect("Couldn't get text from response");
-          let html = Html::parse_document(&content);
-          match self {
-            Website::Bazaraki => {
-              let sel = Selector::parse("a.announcement-block__title").unwrap();
-              for selection in html.select(&sel) {
-                let url_str = selection.value().attr("href").expect("No 'href' found <a> element");
-                match root_url.join(url_str) {
-                  Ok(url) => {
-                    listing_urls.push(url);
-                  },
-                  Err(e) => println!("Couldn't parse {} as URL:{}\n",url_str,e),
-                }
-              }
-            },
-            _ => unimplemented!(),
-          }
-        },
-        Err(e) => println!("Couldn't get response from {}:{}\n", self, e),
-      }
-      bar.inc(1);
-    }
-    bar.finish();
-
-    listing_urls
   }
-
-
 
 }

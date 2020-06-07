@@ -6,7 +6,7 @@ use scraper::{
 
 use crate::cond::Condition;
 use crate::kind::Kind;
-use crate::search::Search;
+use crate::lookup::Lookup;
 
 use std::iter::Iterator;
 
@@ -82,14 +82,14 @@ impl From<&Html> for Listing {
     let desc_html = desc.inner_html();
 
     // Parse property kind
-    let kind = Kind::search(&chars_html).ok_or("Couldn't parse kind").unwrap();
+    let kind = Kind::lookup(&chars_html).ok_or("Couldn't parse kind").unwrap();
 
     // Parse size
     let re_size = Regex::new(r"([0-9]+) m²").unwrap();
     let area = re_size.captures(&chars_html).map(|g| g[1].parse::<f32>().map(|a| a as u32).ok()).flatten();
 
     // Parse condition
-    let cond = Condition::search(&chars_html);
+    let cond = Condition::lookup(&chars_html);
 
     // Parse bedrooms
     let n_bedrooms = if Regex::new(r"[Ss]tudio").unwrap().find(&chars_html).is_some() {
@@ -147,6 +147,34 @@ impl From<&Html> for Listing {
       post_code,
       year: year,
     };
+  }
+
+}
+#[cfg(test)]
+mod test {
+  use super::*;
+  use std::fs::File;
+  use std::io::Read;
+
+  use scraper::Html;
+
+  #[test]
+  fn parse() {
+    
+    let paths = vec![
+      "res/listing_1.html",
+      "res/listing_2.html",
+      "res/listing_3.html",
+    ];
+
+    for path in paths.iter() {
+      let mut content = String::new();
+      let mut file = File::open(path).or(Err(format!("Couldn't open {}", path))).unwrap();
+      file.read_to_string(&mut content).or(Err(format!("Couldn't read {}", path))).unwrap();
+      let document = Html::parse_document(&content);
+      println!("{}: {:?}\n", path,  Listing::from(&document));
+    }
+
   }
 
 }

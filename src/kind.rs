@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::search::Search;
+use crate::lookup::Lookup;
 
 #[derive(Debug)]
 pub enum Kind {
@@ -18,8 +18,8 @@ impl Default for Kind {
   }
 }
 
-impl Search for Kind {
-  fn search(from: &str) -> Option<Self> {
+impl Lookup for Kind {
+  fn lookup(from: &str) -> Option<Self> {
     if Regex::new(r"([Aa]partment)|([Pp]enthouse)").unwrap().find(from).is_some() {
       Some(Kind::Apartment)
     }else if Regex::new(r"[Hh]ouse").unwrap().find(from).is_some() {
