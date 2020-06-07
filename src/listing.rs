@@ -10,11 +10,11 @@ use crate::lookup::Lookup;
 
 use std::iter::Iterator;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Listing {
 
   /// Unique Identifier
-  id: String,
+  pub id: String,
   /// Property Type
   kind: Kind,
   /// Price in EUR

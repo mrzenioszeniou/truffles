@@ -8,6 +8,7 @@ use scraper::{
 };
 
 use crate::area::Area;
+use crate::listing::Listing;
 use crate::site::Website;
 use crate::throttle::Throttler;
 
@@ -99,4 +100,11 @@ impl Engine {
     listing_urls
   }
 
+  pub async fn get_listing(&mut self, url:&Url, _site: Website) -> Option<Listing> {
+    self.get(url).await.map(|c| {
+      let mut lst  = Listing::from(&Html::parse_document(&c));
+      lst.id = String::from(url.as_str());
+      lst
+    })
+  }
 }

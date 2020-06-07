@@ -2,7 +2,7 @@ use regex::Regex;
 
 use crate::lookup::Lookup;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum Kind {
   House,
   Apartment,
