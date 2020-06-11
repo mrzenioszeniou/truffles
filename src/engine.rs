@@ -1,18 +1,12 @@
-use reqwest::{
-  Client,
-  Url,
-};
-use scraper::{
-  Html,
-  Selector,
-};
+use reqwest::{Client, Url};
+use scraper::{Html, Selector};
 
 use crate::area::Area;
 use crate::listing::Listing;
 use crate::site::Website;
 use crate::throttle::Throttler;
 
-const HEADER_KEY:&str = "User-Agent";
+const HEADER_KEY: &str = "User-Agent";
 const HEADER_VALUE:&str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36";
 
 pub struct Engine {
@@ -21,30 +15,32 @@ pub struct Engine {
 }
 
 impl Engine {
-
   pub fn new() -> Self {
     let client = Client::new();
     let throttler = Throttler::new(None);
-    Self {
-      client,
-      throttler,
-    }
+    Self { client, throttler }
   }
 
-  async fn get(&mut self, url:&Url) -> Option<String> {
+  async fn get(&mut self, url: &Url) -> Option<String> {
     self.throttler.tick();
-    match self.client.get(url.clone()).header(HEADER_KEY, HEADER_VALUE).send().await {
+    match self
+      .client
+      .get(url.clone())
+      .header(HEADER_KEY, HEADER_VALUE)
+      .send()
+      .await
+    {
       Ok(response) => match response.text().await {
         Ok(text) => Some(text),
         Err(e) => {
           println!("Couldn't get text from {}:{}\n", url, e);
           None
-        },
+        }
       },
       Err(e) => {
         println!("Couldn't get response from {}:{}\n", url, e);
         None
-      },
+      }
     }
   }
 
@@ -62,10 +58,19 @@ impl Engine {
       match site {
         Website::Bazaraki => {
           let sel = Selector::parse("a.page-number.js-page-filter").expect("");
-          match html.select(&sel).filter_map(|a| a.inner_html().parse::<u32>().ok()).max() {
-            Some(n_pages) => for i in 1..=n_pages {
-              result_urls.push(Url::parse(&format!("{}&page={}", search_url, i)).expect("Couldn't construct URL"));
-            },
+          match html
+            .select(&sel)
+            .filter_map(|a| a.inner_html().parse::<u32>().ok())
+            .max()
+          {
+            Some(n_pages) => {
+              for i in 1..=n_pages {
+                result_urls.push(
+                  Url::parse(&format!("{}&page={}", search_url, i))
+                    .expect("Couldn't construct URL"),
+                );
+              }
+            }
             None => println!("Couldn't get number of result pages from {}\n", search_url),
           }
         }
@@ -76,7 +81,7 @@ impl Engine {
     result_urls
   }
 
-  pub async fn get_listing_urls(&mut self, result_url:Url, site: Website) -> Vec<Url> {
+  pub async fn get_listing_urls(&mut self, result_url: Url, site: Website) -> Vec<Url> {
     let mut listing_urls = vec![];
     let html = match self.get(&result_url).await {
       Some(content) => Html::parse_document(&content),
@@ -87,24 +92,35 @@ impl Engine {
       Website::Bazaraki => {
         let sel = Selector::parse("a.announcement-block__title").unwrap();
         for selection in html.select(&sel) {
-          let url_str = selection.value().attr("href").expect("No 'href' found <a> element");
+          let url_str = selection
+            .value()
+            .attr("href")
+            .expect("No 'href' found <a> element");
           match root_url.join(url_str) {
             Ok(url) => listing_urls.push(url),
-            Err(e) => println!("Couldn't parse {} as URL:{}\n",url_str,e),
+            Err(e) => println!("Couldn't parse {} as URL:{}\n", url_str, e),
           }
         }
-      },
+      }
       _ => unimplemented!(),
     }
 
     listing_urls
   }
 
-  pub async fn get_listing(&mut self, url:&Url, _site: Website) -> Option<Listing> {
-    self.get(url).await.map(|c| {
-      let mut lst  = Listing::from(&Html::parse_document(&c));
-      lst.id = String::from(url.as_str());
-      lst
-    })
+  pub async fn get_listing(&mut self, url: &Url, website: &Website) -> Option<Listing> {
+    self
+      .get(url)
+      .await
+      .map(
+        |c| match Listing::try_from_html(&Html::parse_document(&c), url, website) {
+          Ok(listing) => Some(listing),
+          Err(err) => {
+            println!("{}", err);
+            None
+          }
+        },
+      )
+      .flatten()
   }
 }
