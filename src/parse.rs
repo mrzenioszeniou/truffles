@@ -1,6 +1,7 @@
 use regex::Regex;
 use scraper::{Html, Selector};
 
+use crate::area::Area;
 use crate::cond::Condition;
 use crate::error::Error;
 use crate::kind::Kind;
@@ -32,6 +33,14 @@ pub fn parse_bazaraki(html: &Html, url: &str) -> Result<Listing, Error> {
         .attr("content")
         .unwrap();
     let price: u32 = price_str.parse::<f32>().unwrap() as u32;
+
+    // Parse area
+    let area_sel: Selector = Selector::parse("span[itemprop=\"address\"]").unwrap();
+    let area_str = html.select(&area_sel).next().unwrap().inner_html();
+    let area = match Area::lookup(&area_str) {
+        Some(area) => area,
+        None => panic!("Couldn't parse area for {}", url),
+    };
 
     // Get useful html handles
     let chars_sel = Selector::parse("div.announcement-characteristics").unwrap();
@@ -129,6 +138,7 @@ pub fn parse_bazaraki(html: &Html, url: &str) -> Result<Listing, Error> {
         url,
         kind,
         price,
+        area,
         size,
         cond,
         year,
@@ -136,4 +146,43 @@ pub fn parse_bazaraki(html: &Html, url: &str) -> Result<Listing, Error> {
         n_bathrooms,
         post_code,
     ))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::fs::File;
+    use std::io::Read;
+
+    use scraper::Html;
+
+    #[test]
+    fn bazaraki_parser() {
+        let paths = vec![
+            "res/listing_1.html",
+            "res/listing_2.html",
+            "res/listing_3.html",
+            "res/listing_4.html",
+            "res/listing_5.html",
+            "res/listing_6.html",
+            "res/listing_7.html",
+        ];
+
+        for path in paths.iter() {
+            let mut content = String::new();
+            let mut file = File::open(path)
+                .or(Err(format!("Couldn't open {}", path)))
+                .unwrap();
+            file.read_to_string(&mut content)
+                .or(Err(format!("Couldn't read {}", path)))
+                .unwrap();
+            let document = Html::parse_document(&content);
+
+            println!(
+                "{:?}\n",
+                parse_bazaraki(&document, "https://foo.bar")
+                    .expect("Couldn't parse bazaraki listing")
+            );
+        }
+    }
 }

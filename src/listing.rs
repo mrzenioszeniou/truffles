@@ -1,6 +1,7 @@
 use reqwest::Url;
 use scraper::Html;
 
+use crate::area::Area;
 use crate::cond::Condition;
 use crate::error::Error;
 use crate::kind::Kind;
@@ -17,6 +18,8 @@ pub struct Listing {
     kind: Kind,
     /// Price in EUR
     price: u32,
+    /// Area
+    area: Area,
     /// Size in sq. meters
     size: Option<u32>,
     /// Condition
@@ -38,6 +41,7 @@ impl Default for Listing {
             url: String::from("https://foo.bar"),
             kind: Kind::Villa,
             price: 42000,
+            area: Area::Limassol,
             size: None,
             cond: None,
             year: None,
@@ -61,6 +65,7 @@ impl Listing {
         url: String,
         kind: Kind,
         price: u32,
+        area: Area,
         size: Option<u32>,
         cond: Option<Condition>,
         year: Option<u32>,
@@ -73,48 +78,13 @@ impl Listing {
             url,
             kind,
             price,
+            area,
             size,
             cond,
             year,
             n_bedrooms,
             n_bathrooms,
             post_code,
-        }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use std::fs::File;
-    use std::io::Read;
-    use std::str::FromStr;
-
-    use scraper::Html;
-
-    #[test]
-    fn parse() {
-        let paths = vec![
-            "res/listing_1.html",
-            "res/listing_2.html",
-            "res/listing_3.html",
-        ];
-
-        for path in paths.iter() {
-            let mut content = String::new();
-            let mut file = File::open(path)
-                .or(Err(format!("Couldn't open {}", path)))
-                .unwrap();
-            file.read_to_string(&mut content)
-                .or(Err(format!("Couldn't read {}", path)))
-                .unwrap();
-            let document = Html::parse_document(&content);
-            assert!(Listing::try_from_html(
-                &document,
-                &Url::from_str("https://foo.bar").unwrap(),
-                &Website::Bazaraki
-            )
-            .is_ok());
         }
     }
 }
