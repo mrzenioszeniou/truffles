@@ -4,11 +4,11 @@ use std::fmt;
 
 use crate::area::Area;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Website {
   Bazaraki,
-  _Spitogatos,
-  _ImmobilienScout,
+  Spitogatos,
+  ImmobilienScout,
 }
 
 impl fmt::Display for Website {

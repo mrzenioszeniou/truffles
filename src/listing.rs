@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
 use reqwest::Url;
 use scraper::Html;
-use serde::Serializer;
+use serde::{Deserializer, Serializer};
+
+use std::str::FromStr;
 
 use crate::area::Area;
 use crate::cond::Condition;
@@ -10,21 +12,30 @@ use crate::kind::Kind;
 use crate::parse;
 use crate::site::Website;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct Listing {
   /// Unique Identifier
   id: String,
   /// URL
-  url: String,
+  #[serde(
+    serialize_with = "url_serializer",
+    deserialize_with = "url_deserializer"
+  )]
+  pub url: Url,
+  /// Website,
+  pub website: Website,
   /// Timestamp
-  #[serde(serialize_with = "timestamp_serializer")]
+  #[serde(
+    serialize_with = "timestamp_serializer",
+    deserialize_with = "timestamp_deserializer"
+  )]
   timestamp: DateTime<Utc>,
   /// Property Type
   kind: Kind,
   /// Price in EUR
   price: u32,
   /// Area
-  area: Area,
+  pub area: Area,
   /// Size in sq. meters
   size: Option<u32>,
   /// Condition
@@ -43,17 +54,18 @@ impl Default for Listing {
   fn default() -> Self {
     return Self {
       id: String::from("FOOBAR"),
-      url: String::from("https://foo.bar"),
+      url: Url::from_str("https://foo.bar").unwrap(),
+      website: Website::Bazaraki,
       timestamp: Utc::now(),
       kind: Kind::Villa,
       price: 42000,
       area: Area::Limassol,
-      size: None,
-      cond: None,
-      year: None,
-      n_bedrooms: None,
-      n_bathrooms: None,
-      post_code: None,
+      size: Some(42),
+      cond: Some(Condition::Resale),
+      year: Some(1992),
+      n_bedrooms: Some(1),
+      n_bathrooms: Some(1),
+      post_code: Some(2020),
     };
   }
 }
@@ -61,14 +73,15 @@ impl Default for Listing {
 impl Listing {
   pub fn try_from_html(html: &Html, url: &Url, website: &Website) -> Result<Self, Error> {
     match website {
-      Website::Bazaraki => parse::parse_bazaraki(html, url.as_str()),
+      Website::Bazaraki => parse::parse_bazaraki(html, url),
       _ => unimplemented!(),
     }
   }
 
   pub fn new(
     id: String,
-    url: String,
+    url: Url,
+    website: Website,
     timestamp: DateTime<Utc>,
     kind: Kind,
     price: u32,
@@ -83,6 +96,7 @@ impl Listing {
     Self {
       id,
       url,
+      website,
       timestamp,
       kind,
       price,
@@ -97,9 +111,48 @@ impl Listing {
   }
 }
 
-fn timestamp_serializer<S>(d: &DateTime<Utc>, s: S) -> Result<S::Ok, S::Error>
+fn timestamp_serializer<S>(val: &DateTime<Utc>, s: S) -> Result<S::Ok, S::Error>
 where
   S: Serializer,
 {
-  s.serialize_str(&format!("{}", d))
+  s.serialize_str(&format!("{}", val))
+}
+
+fn timestamp_deserializer<'de, D>(d: D) -> Result<DateTime<Utc>, D::Error>
+where
+  D: Deserializer<'de>,
+{
+  let s: &str = serde::de::Deserialize::deserialize(d)?;
+  Ok(DateTime::from_str(s).expect("Couldn't parse datetime"))
+}
+
+fn url_serializer<S>(val: &Url, s: S) -> Result<S::Ok, S::Error>
+where
+  S: Serializer,
+{
+  s.serialize_str(val.as_str())
+}
+
+fn url_deserializer<'de, D>(d: D) -> Result<Url, D::Error>
+where
+  D: Deserializer<'de>,
+{
+  let s: &str = serde::de::Deserialize::deserialize(d)?;
+  Ok(Url::from_str(s).expect("Couldn't parse Url"))
+}
+
+#[cfg(test)]
+mod test {
+  extern crate serde_json;
+  use super::*;
+  use serde_json::{from_str, to_string};
+
+  #[test]
+  fn listing_serde() {
+    let listing = Listing::default();
+    let json = to_string(&listing).expect("Couldn't serialize listing");
+    let parsed: Listing = from_str(&json).expect("Couldn't deserialize listing");
+
+    assert_eq!(listing, parsed);
+  }
 }

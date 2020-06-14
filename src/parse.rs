@@ -1,5 +1,6 @@
 use chrono::Utc;
 use regex::Regex;
+use reqwest::Url;
 use scraper::{Html, Selector};
 
 use crate::area::Area;
@@ -8,10 +9,11 @@ use crate::error::Error;
 use crate::kind::Kind;
 use crate::listing::Listing;
 use crate::lookup::Lookup;
+use crate::site::Website;
 
 use std::iter::Iterator;
 
-pub fn parse_bazaraki(html: &Html, url: &str) -> Result<Listing, Error> {
+pub fn parse_bazaraki(html: &Html, url: &Url) -> Result<Listing, Error> {
   // Common regular expressions
   let re_int = Regex::new(r"[0-9]+").unwrap();
 
@@ -22,7 +24,10 @@ pub fn parse_bazaraki(html: &Html, url: &str) -> Result<Listing, Error> {
 
   // Parse UID
   let id_sel: Selector = Selector::parse("span[itemprop=\"sku\"").unwrap();
-  let id: String = html.select(&id_sel).next().unwrap().inner_html();
+  let id: String = format!(
+    "bazaraki_{}",
+    html.select(&id_sel).next().unwrap().inner_html()
+  );
 
   // Get timestamp
   let timestamp = Utc::now();
@@ -134,12 +139,10 @@ pub fn parse_bazaraki(html: &Html, url: &str) -> Result<Listing, Error> {
     .filter_map(|c| c[0].parse::<u32>().ok())
     .min();
 
-  // Create url string
-  let url = String::from(url);
-
   Ok(Listing::new(
     id,
-    url,
+    url.clone(),
+    Website::Bazaraki,
     timestamp,
     kind,
     price,
@@ -156,10 +159,10 @@ pub fn parse_bazaraki(html: &Html, url: &str) -> Result<Listing, Error> {
 #[cfg(test)]
 mod test {
   use super::*;
+  use scraper::Html;
   use std::fs::File;
   use std::io::Read;
-
-  use scraper::Html;
+  use std::str::FromStr;
 
   #[test]
   fn bazaraki_parser() {
@@ -186,7 +189,8 @@ mod test {
 
       println!(
         "{:?}\n",
-        parse_bazaraki(&document, "https://foo.bar").expect("Couldn't parse bazaraki listing")
+        parse_bazaraki(&document, &Url::from_str("https://foo.bar").unwrap())
+          .expect("Couldn't parse bazaraki listing")
       );
     }
   }
