@@ -5,6 +5,7 @@ extern crate regex;
 extern crate reqwest;
 extern crate scraper;
 extern crate serde;
+extern crate structopt;
 #[macro_use]
 extern crate serde_derive;
 extern crate tokio;
@@ -23,15 +24,35 @@ mod throttle;
 
 use chrono::Utc;
 use indicatif::{ProgressBar, ProgressStyle};
+use structopt::StructOpt;
 
 use std::collections::HashSet;
 
+use crate::area::Area;
 use crate::cache::Cache;
 use crate::engine::Engine;
 use crate::site::Website;
 
+#[derive(Debug, StructOpt)]
+#[structopt(
+  name = "truffles",
+  about = "\ntruffles is a command-line tool that scrapes listings off of real estate websites."
+)]
+struct Args {
+  #[structopt(short = "a", long = "area", help = "Only fetch listings in this area.")]
+  area: Option<Area>,
+  #[structopt(
+    short = "f",
+    long = "force",
+    help = "Fetch all listings regardless of their latest timestamp."
+  )]
+  force: bool,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), String> {
+  let args: Args = Args::from_args();
+
   let mut engine = Engine::new();
   let mut cache = Cache::load();
 
@@ -43,7 +64,9 @@ async fn main() -> Result<(), String> {
       .tick_chars("|/-\\-"),
   );
   bar.enable_steady_tick(250);
-  let result_urls = engine.get_result_urls(Website::Bazaraki, None).await;
+  let result_urls = engine
+    .get_result_urls(Website::Bazaraki, args.area.clone())
+    .await;
   bar.inc(1);
   bar.finish();
 
@@ -65,13 +88,15 @@ async fn main() -> Result<(), String> {
   bar.finish();
 
   // Only fetch "stale" listings
-  let now = Utc::now();
-  listing_urls.retain(|url| {
-    cache
-      .get_last_timestamp(url)
-      .map(|timestamp| (now - timestamp).num_days() >= 30)
-      .unwrap_or(true)
-  });
+  if args.force {
+    let now = Utc::now();
+    listing_urls.retain(|url| {
+      cache
+        .get_last_timestamp(url)
+        .map(|timestamp| (now - timestamp).num_days() >= 30)
+        .unwrap_or(true)
+    });
+  }
 
   // Get listing pages, parse them and cache the results
   let bar = ProgressBar::new(listing_urls.len() as u64);

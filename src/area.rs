@@ -1,5 +1,7 @@
 use regex::Regex;
 
+use std::str::FromStr;
+
 use crate::lookup::Lookup;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
@@ -9,6 +11,20 @@ pub enum Area {
   Lefkosia,
   Limassol,
   Paphos,
+}
+
+impl FromStr for Area {
+  type Err = String;
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s.trim().to_ascii_lowercase().as_str() {
+      "ammochostos" | "famagusta" => Ok(Self::Ammochostos),
+      "larnaka" | "larnaca" => Ok(Self::Larnaka),
+      "lefkosia" | "nicosia" => Ok(Self::Lefkosia),
+      "limassol" | "lemesos" => Ok(Self::Limassol),
+      "paphos" | "pafos" => Ok(Self::Paphos),
+      _ => Err(format!("Couldn't parse '{}' as an area", s)),
+    }
+  }
 }
 
 impl Area {
