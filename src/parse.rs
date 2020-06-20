@@ -133,7 +133,7 @@ pub fn parse_bazaraki(html: &Html, url: &Url) -> Result<Listing, Error> {
     .flatten();
 
   // Parse year
-  let re_year = Regex::new(r"(20[0-9][0-9])|(19[0-9][0-9])").unwrap();
+  let re_year = Regex::new(r"(20[0-3][0-9])|(19[0-9][0-9])").unwrap();
   let year = re_year
     .captures_iter(&desc_html)
     .filter_map(|c| c[0].parse::<u32>().ok())

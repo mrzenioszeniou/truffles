@@ -26,7 +26,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use std::collections::HashSet;
 
-use crate::area::Area;
 use crate::cache::Cache;
 use crate::engine::Engine;
 use crate::site::Website;
@@ -44,9 +43,7 @@ async fn main() -> Result<(), String> {
       .tick_chars("|/-\\-"),
   );
   bar.enable_steady_tick(250);
-  let result_urls = engine
-    .get_result_urls(Website::Bazaraki, Some(Area::Ammochostos))
-    .await;
+  let result_urls = engine.get_result_urls(Website::Bazaraki, None).await;
   bar.inc(1);
   bar.finish();
 
