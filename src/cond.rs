@@ -2,7 +2,7 @@ use regex::Regex;
 
 use crate::lookup::Lookup;
 
-#[derive(Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Condition {
   New,
   Resale,

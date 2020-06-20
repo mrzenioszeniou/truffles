@@ -12,7 +12,7 @@ use crate::kind::Kind;
 use crate::parse;
 use crate::site::Website;
 
-#[derive(Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct Listing {
   /// Unique Identifier
   id: String,
@@ -29,7 +29,7 @@ pub struct Listing {
     serialize_with = "timestamp_serializer",
     deserialize_with = "timestamp_deserializer"
   )]
-  timestamp: DateTime<Utc>,
+  pub timestamp: DateTime<Utc>,
   /// Property Type
   kind: Kind,
   /// Price in EUR

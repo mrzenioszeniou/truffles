@@ -21,16 +21,20 @@ mod parse;
 mod site;
 mod throttle;
 
-use csv::Writer;
+use chrono::Utc;
 use indicatif::{ProgressBar, ProgressStyle};
 
+use std::collections::HashSet;
+
 use crate::area::Area;
+use crate::cache::Cache;
 use crate::engine::Engine;
 use crate::site::Website;
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
   let mut engine = Engine::new();
+  let mut cache = Cache::load();
 
   // Get result URLs
   let bar = ProgressBar::new(1);
@@ -47,7 +51,7 @@ async fn main() -> Result<(), String> {
   bar.finish();
 
   // Get listing URLs
-  let mut listing_urls = vec![];
+  let mut listing_urls = HashSet::new();
   let bar = ProgressBar::new(result_urls.len() as u64);
   bar.set_style(
     ProgressStyle::default_bar()
@@ -56,13 +60,23 @@ async fn main() -> Result<(), String> {
   );
   bar.enable_steady_tick(250);
   for result_url in result_urls.into_iter() {
-    listing_urls.append(&mut engine.get_listing_urls(result_url, Website::Bazaraki).await);
+    for url in engine.get_listing_urls(result_url, Website::Bazaraki).await {
+      listing_urls.insert(url);
+    }
     bar.inc(1);
   }
   bar.finish();
 
-  // Get listing pages, parse them and dump the listing data in a csv (for now)
-  let mut writer = Writer::from_path("out.csv").expect("Couldn't open out.csv");
+  // Only fetch "stale" listings
+  let now = Utc::now();
+  listing_urls.retain(|url| {
+    cache
+      .get_last_timestamp(url)
+      .map(|timestamp| (now - timestamp).num_days() >= 30)
+      .unwrap_or(true)
+  });
+
+  // Get listing pages, parse them and cache the results
   let bar = ProgressBar::new(listing_urls.len() as u64);
   bar.set_style(
     ProgressStyle::default_bar()
@@ -73,10 +87,7 @@ async fn main() -> Result<(), String> {
   for listing_url in listing_urls.iter() {
     match engine.get_listing(listing_url, &Website::Bazaraki).await {
       Some(listing) => {
-        writer
-          .serialize(listing)
-          .expect("Couldn't serialize listing");
-        writer.flush().expect("Couldn't flush to out.csv");
+        cache.add(listing);
       }
       None => continue,
     }

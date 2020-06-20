@@ -1,31 +1,62 @@
+use chrono::{DateTime, Utc};
 use csv::{Reader, Writer, WriterBuilder};
 use reqwest::Url;
 
 use std::collections::HashMap;
-use std::fs::{File, OpenOptions};
+use std::fs::{create_dir_all, File, OpenOptions};
 use std::path::PathBuf;
 
-use crate::area::Area;
 use crate::listing::Listing;
-use crate::site::Website;
 
 pub struct Cache {
   listings: Vec<Listing>,
   urls: HashMap<Url, Vec<usize>>,
-  websites: HashMap<Website, Vec<usize>>,
-  areas: HashMap<Area, Vec<usize>>,
   writter: Writer<File>,
 }
 
 impl Cache {
+  pub fn get_last_timestamp(&self, url: &Url) -> Option<DateTime<Utc>> {
+    self.urls.get(url).map(|indices| {
+      let mut latest = self.listings[indices[0]].timestamp;
+
+      for index in indices.into_iter() {
+        let listing = &self.listings[*index];
+        if listing.timestamp > latest {
+          latest = listing.timestamp;
+        }
+      }
+
+      latest
+    })
+  }
+
+  pub fn add(&mut self, listing: Listing) {
+    let index = self.listings.len();
+
+    match self.urls.get_mut(&listing.url) {
+      Some(ref mut vec) => {
+        vec.push(index);
+      }
+      None => {
+        self.urls.insert(listing.url.clone(), vec![index]);
+      }
+    }
+
+    self
+      .writter
+      .serialize(listing.clone())
+      .expect("Couldn't serialize listing");
+    self.writter.flush().expect("Couldn't flush listing");
+
+    self.listings.push(listing);
+  }
+
   pub fn load() -> Self {
     let path = dirs::home_dir()
       .expect("Couldn't get home directory")
       .join(PathBuf::from(".truffles/listings.csv"));
 
-    let mut urls = HashMap::new();
-    let mut websites = HashMap::new();
-    let mut areas = HashMap::new();
+    let mut urls: HashMap<Url, Vec<usize>> = HashMap::new();
     let mut listings: Vec<Listing> = vec![];
     if path.exists() {
       let reader = Reader::from_path(path.clone()).expect("Couldn't open cached listings");
@@ -37,33 +68,25 @@ impl Cache {
 
         let index = listings.len();
 
-        if !urls.contains_key(&listing.url) {
-          urls.insert(listing.url.clone(), vec![]);
+        match urls.get_mut(&listing.url) {
+          Some(ref mut vec) => {
+            vec.push(index);
+          }
+          None => {
+            urls.insert(listing.url.clone(), vec![index]);
+          }
         }
-        urls
-          .get_mut(&listing.url)
-          .expect("Can't find URL entry. This shouldn't be possible")
-          .push(index);
-
-        if !websites.contains_key(&listing.website) {
-          websites.insert(listing.website.clone(), vec![]);
-        }
-        websites
-          .get_mut(&listing.website)
-          .expect("Can't find website entry. This shouldn't be possible")
-          .push(index);
-
-        if !areas.contains_key(&listing.area) {
-          areas.insert(listing.area.clone(), vec![]);
-        }
-        areas
-          .get_mut(&listing.area)
-          .expect("Can't find website entry. This shouldn't be possible")
-          .push(index);
 
         listings.push(listing);
       }
-    };
+    } else {
+      create_dir_all(
+        path
+          .parent()
+          .expect("INTERNAL ERROR: Can't get path's parent"),
+      )
+      .expect("INTERNAL ERROR: Can't create directory");
+    }
 
     let writter = WriterBuilder::new()
       .has_headers(!path.exists())
@@ -78,8 +101,6 @@ impl Cache {
     Self {
       listings,
       urls,
-      websites,
-      areas,
       writter,
     }
   }
