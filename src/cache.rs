@@ -85,7 +85,7 @@ impl Cache {
           .parent()
           .expect("INTERNAL ERROR: Can't get path's parent"),
       )
-      .expect("INTERNAL ERROR: Can't create directory");
+      .expect("Can't create .truffles directory");
     }
 
     let writter = WriterBuilder::new()
@@ -95,7 +95,7 @@ impl Cache {
           .create(true)
           .append(true)
           .open(path)
-          .unwrap(),
+          .expect("Couldn't open cache file"),
       );
 
     Self {

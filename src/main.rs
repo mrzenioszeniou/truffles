@@ -1,10 +1,13 @@
 extern crate csv;
 extern crate futures;
 extern crate indicatif;
+#[macro_use]
+extern crate log;
 extern crate regex;
 extern crate reqwest;
 extern crate scraper;
 extern crate serde;
+extern crate simplelog;
 extern crate structopt;
 #[macro_use]
 extern crate serde_derive;
@@ -24,6 +27,7 @@ mod throttle;
 
 use chrono::Utc;
 use indicatif::{ProgressBar, ProgressStyle};
+use log::LevelFilter;
 use structopt::StructOpt;
 
 use std::collections::HashSet;
@@ -39,21 +43,32 @@ use crate::site::Website;
   about = "\ntruffles is a command-line tool that scrapes listings off of real estate websites."
 )]
 struct Args {
-  #[structopt(short = "a", long = "area", help = "Only fetch listings in this area.")]
+  #[structopt(short = "a", long = "area", help = "Only fetch listings in this area")]
   area: Option<Area>,
   #[structopt(
     short = "f",
     long = "force",
-    help = "Fetch all listings regardless of their latest timestamp."
+    help = "Fetch all listings regardless of their latest timestamp"
   )]
   force: bool,
+  #[structopt(
+    short = "l",
+    long = "level",
+    help = "Logging level",
+    default_value = "warn"
+  )]
+  level: LevelFilter,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
+  // Parse arguments
   let args: Args = Args::from_args();
 
-  let mut engine = Engine::new();
+  // Initial engine
+  let mut engine = Engine::new(args.level);
+
+  // Load cache
   let mut cache = Cache::load();
 
   // Get result URLs
@@ -88,7 +103,7 @@ async fn main() -> Result<(), String> {
   bar.finish();
 
   // Only fetch "stale" listings
-  if args.force {
+  if !args.force {
     let now = Utc::now();
     listing_urls.retain(|url| {
       cache

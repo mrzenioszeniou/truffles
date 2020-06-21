@@ -1,5 +1,10 @@
+use log::LevelFilter;
 use reqwest::{Client, Url};
 use scraper::{Html, Selector};
+use simplelog::{ConfigBuilder, LevelPadding, WriteLogger};
+
+use std::fs::{create_dir_all, OpenOptions};
+use std::path::PathBuf;
 
 use crate::area::Area;
 use crate::listing::Listing;
@@ -15,9 +20,38 @@ pub struct Engine {
 }
 
 impl Engine {
-  pub fn new() -> Self {
+  pub fn new(log_level: LevelFilter) -> Self {
     let client = Client::new();
     let throttler = Throttler::new(None);
+
+    let path = dirs::home_dir()
+      .expect("Couldn't get home directory")
+      .join(PathBuf::from(".truffles/log.txt"));
+
+    if !path.exists() {
+      create_dir_all(
+        path
+          .parent()
+          .expect("INTERNAL ERROR: Can't get path's parent"),
+      )
+      .expect("INTERNAL ERROR: Can't create directory");
+    }
+
+    let log_file = OpenOptions::new()
+      .create(true)
+      .append(true)
+      .open(path)
+      .expect(&format!("Couldn't open log file"));
+
+    let _ = WriteLogger::init(
+      log_level,
+      ConfigBuilder::new()
+        .set_level_padding(LevelPadding::Right)
+        .set_time_format_str("%FT%T")
+        .build(),
+      log_file,
+    );
+
     Self { client, throttler }
   }
 
@@ -33,12 +67,12 @@ impl Engine {
       Ok(response) => match response.text().await {
         Ok(text) => Some(text),
         Err(e) => {
-          println!("Couldn't get text from {}:{}\n", url, e);
+          error!("Couldn't get text from {}:{}", url, e);
           None
         }
       },
       Err(e) => {
-        println!("Couldn't get response from {}:{}\n", url, e);
+        error!("Couldn't get response from {}:{}", url, e);
         None
       }
     }
@@ -57,7 +91,8 @@ impl Engine {
       };
       match site {
         Website::Bazaraki => {
-          let sel = Selector::parse("a.page-number.js-page-filter").expect("");
+          let sel =
+            Selector::parse("a.page-number.js-page-filter").expect("Couldn't parse selector");
           match html
             .select(&sel)
             .filter_map(|a| a.inner_html().parse::<u32>().ok())
@@ -71,7 +106,7 @@ impl Engine {
                 );
               }
             }
-            None => println!("Couldn't get number of result pages from {}\n", search_url),
+            None => error!("Couldn't get number of result pages from {}\n", search_url),
           }
         }
         _ => unimplemented!(),
@@ -98,7 +133,7 @@ impl Engine {
             .expect("No 'href' found <a> element");
           match root_url.join(url_str) {
             Ok(url) => listing_urls.push(url),
-            Err(e) => println!("Couldn't parse {} as URL:{}\n", url_str, e),
+            Err(e) => error!("Couldn't parse {} as URL:{}\n", url_str, e),
           }
         }
       }
@@ -116,7 +151,7 @@ impl Engine {
         |c| match Listing::try_from_html(&Html::parse_document(&c), url, website) {
           Ok(listing) => Some(listing),
           Err(err) => {
-            println!("{}", err);
+            error!("Couldn't parse {}:{}", url, err);
             None
           }
         },
