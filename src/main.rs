@@ -24,6 +24,7 @@ mod lookup;
 mod parse;
 mod site;
 mod throttle;
+mod urls;
 
 use chrono::Utc;
 use indicatif::{ProgressBar, ProgressStyle};

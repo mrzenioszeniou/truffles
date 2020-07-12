@@ -4,11 +4,12 @@ use crate::lookup::Lookup;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Kind {
-  House,
   Apartment,
-  Duplex,
-  Maisonette,
   Bungalow,
+  Duplex,
+  House,
+  Maisonette,
+  Plot,
   Villa,
 }
 
@@ -40,6 +41,8 @@ impl Lookup for Kind {
       Some(Kind::Bungalow)
     } else if Regex::new(r"[Vv]illa").unwrap().find(from).is_some() {
       Some(Kind::Villa)
+    } else if Regex::new(r"([Pp]lot)").unwrap().find(from).is_some() {
+      Some(Kind::Plot)
     } else {
       None
     }

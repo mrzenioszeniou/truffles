@@ -196,6 +196,12 @@ mod test {
       "res/listing_5.html",
       "res/listing_6.html",
       "res/listing_7.html",
+      "res/listing_8.html",
+      "res/listing_9.html",
+      "res/listing_10.html",
+      "res/listing_11.html",
+      "res/listing_12.html",
+      "res/listing_13.html",
     ];
 
     for path in paths.iter() {
@@ -211,8 +217,11 @@ mod test {
 
       println!(
         "{:?}\n",
-        parse_bazaraki(&document, &Url::from_str("https://foo.bar").unwrap())
-          .expect("Couldn't parse bazaraki listing")
+        parse_bazaraki(
+          &document,
+          &Url::from_str(&format!("https://foo.bar/{}", path)).unwrap()
+        )
+        .expect("Couldn't parse bazaraki listing")
       );
     }
   }

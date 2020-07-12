@@ -1,0 +1,1 @@
+var $doc=$(document),$win=$(window);$(document).ready(function(){var item;if(!app.modules)return!1;for(item in app.modules)app.modules[item].ready&&app.modules[item].ready()}),$(window).load(function(){return!!app.modules&&void setTimeout(function(){var item;for(item in app.modules)app.modules[item].load&&app.modules[item].load()},10)});

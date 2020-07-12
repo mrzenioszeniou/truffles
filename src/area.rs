@@ -27,18 +27,6 @@ impl FromStr for Area {
   }
 }
 
-impl Area {
-  pub fn all() -> Box<[Self]> {
-    Box::new([
-      Area::Ammochostos,
-      Area::Larnaka,
-      Area::Lefkosia,
-      Area::Limassol,
-      Area::Paphos,
-    ])
-  }
-}
-
 impl Lookup for Area {
   fn lookup(from: &str) -> Option<Self> {
     if Regex::new(r"[Ff]amagusta").unwrap().find(from).is_some() {

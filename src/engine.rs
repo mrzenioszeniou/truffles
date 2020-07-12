@@ -10,6 +10,7 @@ use crate::area::Area;
 use crate::listing::Listing;
 use crate::site::Website;
 use crate::throttle::Throttler;
+use crate::urls;
 
 const HEADER_KEY: &str = "User-Agent";
 const HEADER_VALUE:&str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.77 Safari/537.36";
@@ -80,10 +81,7 @@ impl Engine {
 
   pub async fn get_result_urls(&mut self, site: Website, area: Option<Area>) -> Vec<Url> {
     let mut result_urls = vec![];
-    let search_roots = match area {
-      Some(area) => vec![site.get_search_root(&area)],
-      None => site.get_search_roots(),
-    };
+    let search_roots = urls::get_search_roots(Some(site.clone()), area, None);
     for search_url in search_roots.into_iter() {
       let html = match self.get(&search_url).await {
         Some(content) => Html::parse_document(&content),
