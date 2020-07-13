@@ -19,10 +19,11 @@ mod cond;
 mod engine;
 mod error;
 mod io;
-mod kind;
 mod listing;
 mod lookup;
 mod parse;
+mod plot;
+mod property;
 mod site;
 mod throttle;
 mod urls;
@@ -60,6 +61,7 @@ struct Args {
     default_value = "warn"
   )]
   level: LevelFilter,
+  // TODO: Add argument(s) to pick between plots and properties
 }
 
 #[tokio::main]

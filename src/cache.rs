@@ -7,101 +7,171 @@ use std::fs::{create_dir_all, File, OpenOptions};
 use std::path::PathBuf;
 
 use crate::listing::Listing;
+use crate::plot::Plot;
+use crate::property::Property;
 
 pub struct Cache {
   listings: Vec<Listing>,
   urls: HashMap<Url, Vec<usize>>,
-  writter: Writer<File>,
+  property_writer: Writer<File>,
+  plot_writer: Writer<File>,
 }
 
 impl Cache {
   pub fn get_last_timestamp(&self, url: &Url) -> Option<DateTime<Utc>> {
     self.urls.get(url).map(|indices| {
-      let mut latest = self.listings[indices[0]].timestamp;
+      let mut latest = self.listings[indices[0]].timestamp();
 
       for index in indices.into_iter() {
         let listing = &self.listings[*index];
-        if listing.timestamp > latest {
-          latest = listing.timestamp;
+        if listing.timestamp() > latest {
+          latest = listing.timestamp();
         }
       }
 
-      latest
+      latest.clone()
     })
   }
 
   pub fn add(&mut self, listing: Listing) {
     let index = self.listings.len();
 
-    match self.urls.get_mut(&listing.url) {
+    match self.urls.get_mut(listing.url()) {
       Some(ref mut vec) => {
         vec.push(index);
       }
       None => {
-        self.urls.insert(listing.url.clone(), vec![index]);
+        self.urls.insert(listing.url().clone(), vec![index]);
       }
     }
 
-    self
-      .writter
-      .serialize(listing.clone())
-      .expect("Couldn't serialize listing");
-    self.writter.flush().expect("Couldn't flush listing");
+    match listing {
+      Listing::Plot(ref plot) => {
+        self
+          .plot_writer
+          .serialize(plot)
+          .expect("Couldn't serialize listing");
+        self
+          .plot_writer
+          .flush()
+          .expect("Couldn't flush plot writer");
+      }
+      Listing::Property(ref prop) => {
+        self
+          .property_writer
+          .serialize(prop)
+          .expect("Couldn't serialize listing");
+        self
+          .property_writer
+          .flush()
+          .expect("Couldn't flush property writer");
+      }
+    }
 
     self.listings.push(listing);
   }
 
   pub fn load() -> Self {
-    let path = dirs::home_dir()
-      .expect("Couldn't get home directory")
-      .join(PathBuf::from(".truffles/listings.csv"));
-
     let mut urls: HashMap<Url, Vec<usize>> = HashMap::new();
     let mut listings: Vec<Listing> = vec![];
-    if path.exists() {
-      let reader = Reader::from_path(path.clone()).expect("Couldn't open cached listings");
-      for listing in reader.into_deserialize() {
-        let listing: Listing = match listing {
-          Ok(listing) => listing,
-          Err(e) => panic!("Couldn't deserialize listing record:{}", e),
+
+    // Load up properties if any can be found
+    let props_path = dirs::home_dir()
+      .expect("Couldn't get home directory")
+      .join(PathBuf::from(".truffles/properties.csv"));
+    if props_path.exists() {
+      let reader =
+        Reader::from_path(props_path.clone()).expect("Couldn't open cached property listings");
+      for prop in reader.into_deserialize() {
+        let property: Property = match prop {
+          Ok(property) => property,
+          Err(e) => panic!("Couldn't deserialize property record:{}", e),
         };
 
         let index = listings.len();
 
-        match urls.get_mut(&listing.url) {
+        match urls.get_mut(&property.url) {
           Some(ref mut vec) => {
             vec.push(index);
           }
           None => {
-            urls.insert(listing.url.clone(), vec![index]);
+            urls.insert(property.url.clone(), vec![index]);
           }
         }
 
-        listings.push(listing);
+        listings.push(Listing::Property(property));
       }
     } else {
       create_dir_all(
-        path
+        props_path
           .parent()
           .expect("INTERNAL ERROR: Can't get path's parent"),
       )
       .expect("Can't create .truffles directory");
     }
 
-    let writter = WriterBuilder::new()
-      .has_headers(!path.exists())
+    // Load up plots if any can be found
+    let plots_path = dirs::home_dir()
+      .expect("Couldn't get home directory")
+      .join(PathBuf::from(".truffles/plots.csv"));
+    if plots_path.exists() {
+      let reader =
+        Reader::from_path(plots_path.clone()).expect("Couldn't open cached plot listings");
+      for plot in reader.into_deserialize() {
+        let plot: Plot = match plot {
+          Ok(plot) => plot,
+          Err(e) => panic!("Couldn't deserialize plot record:{}", e),
+        };
+
+        let index = listings.len();
+
+        match urls.get_mut(&plot.url) {
+          Some(ref mut vec) => {
+            vec.push(index);
+          }
+          None => {
+            urls.insert(plot.url.clone(), vec![index]);
+          }
+        }
+
+        listings.push(Listing::Plot(plot));
+      }
+    } else {
+      create_dir_all(
+        plots_path
+          .parent()
+          .expect("INTERNAL ERROR: Can't get path's parent"),
+      )
+      .expect("Can't create .truffles directory");
+    }
+
+    // Initialize plot writer
+    let plot_writer = WriterBuilder::new()
+      .has_headers(!plots_path.exists())
       .from_writer(
         OpenOptions::new()
           .create(true)
           .append(true)
-          .open(path)
+          .open(plots_path)
+          .expect("Couldn't open cache file"),
+      );
+
+    // Initialize property writer
+    let property_writer = WriterBuilder::new()
+      .has_headers(!props_path.exists())
+      .from_writer(
+        OpenOptions::new()
+          .create(true)
+          .append(true)
+          .open(props_path)
           .expect("Couldn't open cache file"),
       );
 
     Self {
       listings,
       urls,
-      writter,
+      plot_writer,
+      property_writer,
     }
   }
 }
