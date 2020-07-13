@@ -18,6 +18,7 @@ mod cache;
 mod cond;
 mod engine;
 mod error;
+mod io;
 mod kind;
 mod listing;
 mod lookup;

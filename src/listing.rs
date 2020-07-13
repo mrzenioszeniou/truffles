@@ -1,13 +1,13 @@
 use chrono::{DateTime, Utc};
 use reqwest::Url;
 use scraper::Html;
-use serde::{Deserializer, Serializer};
 
 use std::str::FromStr;
 
 use crate::area::Area;
 use crate::cond::Condition;
 use crate::error::Error;
+use crate::io::{timestamp_deserializer, timestamp_serializer, url_deserializer, url_serializer};
 use crate::kind::Kind;
 use crate::parse;
 use crate::site::Website;
@@ -109,36 +109,6 @@ impl Listing {
       post_code,
     }
   }
-}
-
-fn timestamp_serializer<S>(val: &DateTime<Utc>, s: S) -> Result<S::Ok, S::Error>
-where
-  S: Serializer,
-{
-  s.serialize_str(&format!("{}", val))
-}
-
-fn timestamp_deserializer<'de, D>(d: D) -> Result<DateTime<Utc>, D::Error>
-where
-  D: Deserializer<'de>,
-{
-  let s: &str = serde::de::Deserialize::deserialize(d)?;
-  Ok(DateTime::from_str(s).expect("Couldn't parse datetime"))
-}
-
-fn url_serializer<S>(val: &Url, s: S) -> Result<S::Ok, S::Error>
-where
-  S: Serializer,
-{
-  s.serialize_str(val.as_str())
-}
-
-fn url_deserializer<'de, D>(d: D) -> Result<Url, D::Error>
-where
-  D: Deserializer<'de>,
-{
-  let s: &str = serde::de::Deserialize::deserialize(d)?;
-  Ok(Url::from_str(s).expect("Couldn't parse Url"))
 }
 
 #[cfg(test)]
