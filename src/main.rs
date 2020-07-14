@@ -38,6 +38,7 @@ use std::collections::HashSet;
 use crate::area::Area;
 use crate::cache::Cache;
 use crate::engine::Engine;
+use crate::listing::Kind;
 use crate::site::Website;
 
 #[derive(Debug, StructOpt)]
@@ -46,7 +47,11 @@ use crate::site::Website;
   about = "\ntruffles is a command-line tool that scrapes listings off of real estate websites."
 )]
 struct Args {
-  #[structopt(short = "a", long = "area", help = "Only fetch listings in this area")]
+  #[structopt(
+    short = "a",
+    long = "area",
+    help = "Only fetch listings in this area [options: famagusta|larnaka|lefkosia|limassol|paphos]"
+  )]
   area: Option<Area>,
   #[structopt(
     short = "f",
@@ -61,7 +66,12 @@ struct Args {
     default_value = "warn"
   )]
   level: LevelFilter,
-  // TODO: Add argument(s) to pick between plots and properties
+  #[structopt(
+    short = "k",
+    long = "kind",
+    help = "Onlt fetch listings of a specific kind [options: plot|property]"
+  )]
+  kind: Option<Kind>,
 }
 
 #[tokio::main]
@@ -84,7 +94,7 @@ async fn main() -> Result<(), String> {
   );
   bar.enable_steady_tick(250);
   let result_urls = engine
-    .get_result_urls(Website::Bazaraki, args.area.clone())
+    .get_result_urls(Website::Bazaraki, args.area, args.kind)
     .await;
   bar.inc(1);
   bar.finish();

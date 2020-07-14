@@ -6,15 +6,14 @@ use std::collections::HashMap;
 use std::fs::{create_dir_all, File, OpenOptions};
 use std::path::PathBuf;
 
-use crate::listing::Listing;
+use crate::listing::{Kind, Listing};
 use crate::plot::Plot;
 use crate::property::Property;
 
 pub struct Cache {
   listings: Vec<Listing>,
   urls: HashMap<Url, Vec<usize>>,
-  property_writer: Writer<File>,
-  plot_writer: Writer<File>,
+  writers: HashMap<Kind, Writer<File>>,
 }
 
 impl Cache {
@@ -45,27 +44,12 @@ impl Cache {
       }
     }
 
-    match listing {
-      Listing::Plot(ref plot) => {
-        self
-          .plot_writer
-          .serialize(plot)
-          .expect("Couldn't serialize listing");
-        self
-          .plot_writer
-          .flush()
-          .expect("Couldn't flush plot writer");
+    match self.writers.get_mut(&listing.kind()) {
+      Some(ref mut wrt) => {
+        wrt.serialize(&listing).expect("Couldn't serialize listing");
+        wrt.flush().expect("Couldn't flush writer");
       }
-      Listing::Property(ref prop) => {
-        self
-          .property_writer
-          .serialize(prop)
-          .expect("Couldn't serialize listing");
-        self
-          .property_writer
-          .flush()
-          .expect("Couldn't flush property writer");
-      }
+      None => panic!("No writer found for listing kind '{:?}'", listing.kind()),
     }
 
     self.listings.push(listing);
@@ -145,33 +129,29 @@ impl Cache {
       .expect("Can't create .truffles directory");
     }
 
-    // Initialize plot writer
-    let plot_writer = WriterBuilder::new()
-      .has_headers(!plots_path.exists())
-      .from_writer(
-        OpenOptions::new()
-          .create(true)
-          .append(true)
-          .open(plots_path)
-          .expect("Couldn't open cache file"),
-      );
+    // Initialize writers
+    let mut writers = HashMap::new();
+    for kind in Kind::all().into_iter() {
+      let path = dirs::home_dir()
+        .expect("Couldn't get home directory")
+        .join(PathBuf::from(format!(".truffles/{:?}.csv", kind)));
 
-    // Initialize property writer
-    let property_writer = WriterBuilder::new()
-      .has_headers(!props_path.exists())
-      .from_writer(
-        OpenOptions::new()
-          .create(true)
-          .append(true)
-          .open(props_path)
-          .expect("Couldn't open cache file"),
-      );
+      let writer = WriterBuilder::new()
+        .has_headers(!path.exists() || !listings.iter().any(|l| l.kind() == kind))
+        .from_writer(
+          OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .expect("Couldn't open cache file"),
+        );
+      assert!(writers.insert(kind, writer).is_none());
+    }
 
     Self {
       listings,
       urls,
-      plot_writer,
-      property_writer,
+      writers,
     }
   }
 }

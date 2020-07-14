@@ -7,7 +7,7 @@ use std::fs::{create_dir_all, OpenOptions};
 use std::path::PathBuf;
 
 use crate::area::Area;
-use crate::listing::Listing;
+use crate::listing::{Kind, Listing};
 use crate::site::Website;
 use crate::throttle::Throttler;
 use crate::urls;
@@ -27,7 +27,7 @@ impl Engine {
 
     let path = dirs::home_dir()
       .expect("Couldn't get home directory")
-      .join(PathBuf::from(".truffles/log.txt"));
+      .join(PathBuf::from(".truffles/truffles.log"));
 
     if !path.exists() {
       create_dir_all(
@@ -79,9 +79,14 @@ impl Engine {
     }
   }
 
-  pub async fn get_result_urls(&mut self, site: Website, area: Option<Area>) -> Vec<Url> {
+  pub async fn get_result_urls(
+    &mut self,
+    site: Website,
+    area: Option<Area>,
+    kind: Option<Kind>,
+  ) -> Vec<Url> {
     let mut result_urls = vec![];
-    let search_roots = urls::get_search_roots(Some(site.clone()), area, None);
+    let search_roots = urls::get_search_roots(Some(site.clone()), area, kind);
     for search_url in search_roots.into_iter() {
       let html = match self.get(&search_url).await {
         Some(content) => Html::parse_document(&content),
@@ -149,7 +154,7 @@ impl Engine {
         |c| match Listing::try_from_html(&Html::parse_document(&c), url, website) {
           Ok(listing) => Some(listing),
           Err(err) => {
-            error!("Couldn't parse {}:{}", url, err);
+            error!("Couldn't parse {} : {}", url, err);
             None
           }
         },

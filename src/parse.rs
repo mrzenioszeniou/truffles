@@ -6,7 +6,7 @@ use scraper::{Html, Selector};
 use crate::area::Area;
 use crate::cond::Condition;
 use crate::error::Error;
-use crate::listing::Listing;
+use crate::listing::{Kind as ListingKind, Listing};
 use crate::lookup::Lookup;
 use crate::plot::{Kind as PlotKind, Plot};
 use crate::property::{Kind as PropertyKind, Property};
@@ -64,6 +64,13 @@ pub fn parse_bazaraki(html: &Html, url: &Url) -> Result<Listing, Error> {
   };
 
   // Get useful html handles
+  let breadcrumbs_sel =
+    Selector::parse("ul.breadcrumbs").expect("INTERNAL ERROR: Couldn't parse selector");
+  let breadcrumbs_html = html
+    .select(&breadcrumbs_sel)
+    .next()
+    .ok_or(Error::from("Couldn't select breadcrumbs"))?
+    .html();
   let chars_sel = Selector::parse("div.announcement-characteristics")
     .expect("INTERNAL ERROR: Couldn't parse selector");
   let chars = html
@@ -86,131 +93,138 @@ pub fn parse_bazaraki(html: &Html, url: &Url) -> Result<Listing, Error> {
     .map(|g| g[1].parse::<f32>().map(|a| a as u32).ok())
     .flatten();
 
-  // TODO: Figure out if it's a plot or property
-  let is_property = true;
+  // Figure out what kind of listing we're parsing
+  let kind = ListingKind::lookup(&breadcrumbs_html)
+    .ok_or(Error::from("Couldn't figure out listing kind"))?;
 
-  if is_property {
-    // Parse property kind
-    let kind = PropertyKind::lookup(&chars_html).ok_or(Error::from("Couldn't parse kind"))?;
+  match kind {
+    ListingKind::Property => {
+      // Parse property kind
+      let kind = PropertyKind::lookup(&chars_html).ok_or(Error::from("Couldn't parse kind"))?;
 
-    // Parse condition
-    let cond = Condition::lookup(&chars_html);
+      // Parse condition
+      let cond = Condition::lookup(&chars_html);
 
-    // Parse bedrooms
-    let n_bedrooms = if Regex::new(r"[Ss]tudio")
-      .expect("INTERNAL ERROR: Couldn't parse regex")
-      .find(&chars_html)
-      .is_some()
-    {
-      Some(0)
-    } else {
-      let re_bedrooms = Regex::new(r"[Bb]edrooms*").expect("INTERNAL ERROR: Couldn't parse regex");
-      match chars
-        .select(&li_sel)
-        .filter(|li| re_bedrooms.find(&li.inner_html()).is_some())
-        .next()
+      // Parse bedrooms
+      let n_bedrooms = if Regex::new(r"[Ss]tudio")
+        .expect("INTERNAL ERROR: Couldn't parse regex")
+        .find(&chars_html)
+        .is_some()
       {
-        Some(li) => Some(
-          li.select(&a_sel)
+        Some(0)
+      } else {
+        let re_bedrooms =
+          Regex::new(r"[Bb]edrooms*").expect("INTERNAL ERROR: Couldn't parse regex");
+        match chars
+          .select(&li_sel)
+          .filter(|li| re_bedrooms.find(&li.inner_html()).is_some())
+          .next()
+        {
+          Some(li) => Some(
+            li.select(&a_sel)
+              .next()
+              .ok_or(Error::from("Couldn't select bedrooms"))?
+              .inner_html()
+              .trim()
+              .parse()
+              .map_err(|e| Error::from(format!("Couldn't parse bedrooms:{}", e)))?,
+          ),
+          None => None,
+        }
+      };
+
+      // Parse bathrooms
+      let re_bathrooms =
+        Regex::new(r"[Bb]athrooms*").expect("INTERNAL ERROR: Couldn't parse regex");
+      let n_bathrooms = chars
+        .select(&li_sel)
+        .filter(|li| re_bathrooms.find(&li.inner_html()).is_some())
+        .next()
+        .map(|li| {
+          li.select(&span_sel)
+            .filter(|span| re_int.find(&span.inner_html()).is_some())
             .next()
-            .ok_or(Error::from("Couldn't select bedrooms"))?
-            .inner_html()
-            .trim()
-            .parse()
-            .map_err(|e| Error::from(format!("Couldn't parse bedrooms:{}", e)))?,
-        ),
-        None => None,
-      }
-    };
+            .map(|span| {
+              let str_bathrooms = span.inner_html();
+              str_bathrooms.trim().parse().ok()
+            })
+        })
+        .flatten()
+        .flatten();
 
-    // Parse bathrooms
-    let re_bathrooms = Regex::new(r"[Bb]athrooms*").expect("INTERNAL ERROR: Couldn't parse regex");
-    let n_bathrooms = chars
-      .select(&li_sel)
-      .filter(|li| re_bathrooms.find(&li.inner_html()).is_some())
-      .next()
-      .map(|li| {
-        li.select(&span_sel)
-          .filter(|span| re_int.find(&span.inner_html()).is_some())
-          .next()
-          .map(|span| {
-            let str_bathrooms = span.inner_html();
-            str_bathrooms.trim().parse().ok()
-          })
-      })
-      .flatten()
-      .flatten();
+      // Parse post code
+      let re_post =
+        Regex::new(r"[Pp]ostal\s+[Cc]ode").expect("INTERNAL ERROR: Couldn't parse regex");
+      let post_code = chars
+        .select(&li_sel)
+        .filter(|li| re_post.find(&li.inner_html()).is_some())
+        .next()
+        .map(|li| {
+          li.select(&span_sel)
+            .filter(|span| re_int.find(&span.inner_html()).is_some())
+            .next()
+            .map(|span| {
+              let str_post_code = span.inner_html();
+              str_post_code.trim().parse().ok()
+            })
+        })
+        .flatten()
+        .flatten();
 
-    // Parse post code
-    let re_post = Regex::new(r"[Pp]ostal\s+[Cc]ode").expect("INTERNAL ERROR: Couldn't parse regex");
-    let post_code = chars
-      .select(&li_sel)
-      .filter(|li| re_post.find(&li.inner_html()).is_some())
-      .next()
-      .map(|li| {
-        li.select(&span_sel)
-          .filter(|span| re_int.find(&span.inner_html()).is_some())
-          .next()
-          .map(|span| {
-            let str_post_code = span.inner_html();
-            str_post_code.trim().parse().ok()
-          })
-      })
-      .flatten()
-      .flatten();
+      // Parse year
+      let re_year = Regex::new(r"(20[0-3][0-9])|(19[0-9][0-9])").expect("Couldn't parse regex");
+      let year = re_year
+        .captures_iter(&desc_html)
+        .filter_map(|c| c[0].parse::<u32>().ok())
+        .min();
 
-    // Parse year
-    let re_year = Regex::new(r"(20[0-3][0-9])|(19[0-9][0-9])").expect("Couldn't parse regex");
-    let year = re_year
-      .captures_iter(&desc_html)
-      .filter_map(|c| c[0].parse::<u32>().ok())
-      .min();
+      Ok(Listing::Property(Property::new(
+        id,
+        url.clone(),
+        Website::Bazaraki,
+        timestamp,
+        kind,
+        price,
+        area,
+        size,
+        cond,
+        year,
+        n_bedrooms,
+        n_bathrooms,
+        post_code,
+      )))
+    }
+    ListingKind::Plot => {
+      // TODO: Parse plot kind
+      let kind = PlotKind::Agricultural;
 
-    Ok(Listing::Property(Property::new(
-      id,
-      url.clone(),
-      Website::Bazaraki,
-      timestamp,
-      kind,
-      price,
-      area,
-      size,
-      cond,
-      year,
-      n_bedrooms,
-      n_bathrooms,
-      post_code,
-    )))
-  } else {
-    // TODO: Parse plot kind
-    let kind = PlotKind::Agricultural;
+      // TODO: Parse coverage
+      let coverage = Some(42);
 
-    // TODO: Parse coverage
-    let coverage = Some(42);
+      // TODO: Parse density
+      let density = Some(42);
 
-    // TODO: Parse density
-    let density = Some(42);
+      // TODO: Parse height
+      let height = Some(4.2);
 
-    // TODO: Parse height
-    let height = Some(4.2);
+      // TODO: Parse storeys
+      let storeys = Some(42);
 
-    // TODO: Parse storeys
-    let storeys = Some(42);
-
-    Ok(Listing::Plot(Plot::new(
-      id,
-      url.clone(),
-      Website::Bazaraki,
-      timestamp,
-      kind,
-      price,
-      area,
-      size,
-      coverage,
-      density,
-      height,
-      storeys,
-    )))
+      Ok(Listing::Plot(Plot::new(
+        id,
+        url.clone(),
+        Website::Bazaraki,
+        timestamp,
+        kind,
+        price,
+        area,
+        size,
+        coverage,
+        density,
+        height,
+        storeys,
+      )))
+    }
   }
 }
 
