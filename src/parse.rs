@@ -1,5 +1,5 @@
 use chrono::Utc;
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 use reqwest::Url;
 use scraper::{Html, Selector};
 
@@ -195,29 +195,29 @@ pub fn parse_bazaraki(html: &Html, url: &Url) -> Result<Listing, Error> {
       )))
     }
     ListingKind::Plot => {
-      // TODO: Parse plot kind
-      let kind = PlotKind::Agricultural;
+      // Parse plot kind
+      let kind = PlotKind::lookup(&chars_html);
 
-      // TODO: Parse coverage
-      let coverage = Some(42);
+      // Parse coverage
+      let coverage = parse_coverage(&desc_html)?;
 
       // TODO: Parse density
-      let density = Some(42);
+      let density = None;
 
       // TODO: Parse height
-      let height = Some(4.2);
+      let height = None;
 
       // TODO: Parse storeys
-      let storeys = Some(42);
+      let storeys = None;
 
       Ok(Listing::Plot(Plot::new(
         id,
         url.clone(),
         Website::Bazaraki,
         timestamp,
-        kind,
         price,
         area,
+        kind,
         size,
         coverage,
         density,
@@ -226,6 +226,53 @@ pub fn parse_bazaraki(html: &Html, url: &Url) -> Result<Listing, Error> {
       )))
     }
   }
+}
+
+fn parse_coverage(from: &str) -> Result<Option<u32>, Error> {
+  Ok(
+    if let Some(caps) = RegexBuilder::new(
+      r"([0-9]+)\s*%(\s+max(imum)?)?(\s+build(ing)?)?\s+cover(age)?(\s+((coefficient)|(factor)))?",
+    )
+    .case_insensitive(true)
+    .build()
+    .expect("Couldn't parse regex")
+    .captures(from)
+    {
+      let cover_str = caps
+        .get(1)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str();
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else if let Some(caps) = RegexBuilder::new(
+      r"(max(imum)?\s+)?(build(ing)?\s+)?cover(age)?\s*(((coefficient)|(factor))\s+)?(is\s+)?(of\s+)?(:\s*)?([0-9]+)\s*%",
+    )
+    .case_insensitive(true)
+    .build()
+    .expect("Couldn't parse regex")
+    .captures(from)
+    {
+      let cover_str = caps
+        .get(13)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str();
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else if let Some(caps) = RegexBuilder::new(
+      r"(μ[έε]γιστο(ς)?)?(συντελεστ[ήη](ς)?\s+)?κ[αά]λυψη(ς)?\s*(:\s*)?([0-9]+)\s*%",
+    )
+    .case_insensitive(true)
+    .build()
+    .expect("Couldn't parse regex")
+    .captures(from)
+    {
+      let cover_str = caps
+        .get(7)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str();
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else {
+      None
+    },
+  )
 }
 
 #[cfg(test)]
@@ -273,6 +320,29 @@ mod test {
         )
         .expect("Couldn't parse bazaraki listing")
       );
+    }
+  }
+
+  #[test]
+  fn coverage_parser() {
+    let cases = vec![
+      "42%  maxImum coverage   CoeFficieNt",
+      "42 %  buiLDinG  coVerage",
+      "42%\tcover faCTor",
+      "42%\ncoverCge",
+      "cOVERAGe coefficient of 42%",
+      "coveragE coEFFiCient : 42 %",
+      "CoverAge is 42%",
+      "BUILDiNG COVERAGe\n\t42 %",
+      "maximum\tcoverage      coefficient 42%",
+      "Κάλυψη: 42%",
+      "συντελεστή κάλυψης 42%",
+    ];
+
+    for case in cases.into_iter() {
+      if parse_coverage(case).expect("OOPS") != Some(42) {
+        panic!("Couldn't parse \"{}\"", case);
+      };
     }
   }
 }

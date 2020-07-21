@@ -27,12 +27,12 @@ pub struct Plot {
     deserialize_with = "timestamp_deserializer"
   )]
   pub timestamp: DateTime<Utc>,
-  /// Property Type
-  kind: Kind,
   /// Price in EUR
   price: u32,
   /// Area
   pub area: Area,
+  /// Property Type
+  kind: Option<Kind>,
   /// Size in sq. meters
   size: Option<u32>,
   /// Coverage Factor (%)
@@ -51,9 +51,9 @@ impl Plot {
     url: Url,
     website: Website,
     timestamp: DateTime<Utc>,
-    kind: Kind,
     price: u32,
     area: Area,
+    kind: Option<Kind>,
     size: Option<u32>,
     coverage: Option<u32>,
     density: Option<u32>,
@@ -65,9 +65,9 @@ impl Plot {
       url,
       website,
       timestamp,
-      kind,
       price,
       area,
+      kind,
       size,
       coverage,
       density,
@@ -86,9 +86,9 @@ impl Default for Plot {
       url: Url::from_str("https://foo.bar").unwrap(),
       website: Website::Bazaraki,
       timestamp: Utc::now(),
-      kind: Kind::Agricultural,
       price: 42000,
       area: Area::Limassol,
+      kind: Some(Kind::Agricultural),
       size: Some(4200),
       coverage: Some(20),
       density: Some(40),
