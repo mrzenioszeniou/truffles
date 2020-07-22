@@ -257,7 +257,7 @@ fn parse_coverage(from: &str) -> Result<Option<u32>, Error> {
         .as_str();
       Some(cover_str.parse().map_err(|e| Error::from(e))?)
     } else if let Some(caps) = RegexBuilder::new(
-      r"(μ[έε]γιστο(ς)?)?(συντελεστ[ήη](ς)?\s+)?κ[αά]λυψη(ς)?\s*(:\s*)?([0-9]+)\s*%",
+      r"(μ[έε]γιστο(ς)?\s+)?(συντελεστ[ήη](ς)?\s+)?κ[αά]λυψη(ς)?\s*(:\s*)?([0-9]+)\s*%",
     )
     .case_insensitive(true)
     .build()
@@ -266,6 +266,19 @@ fn parse_coverage(from: &str) -> Result<Option<u32>, Error> {
     {
       let cover_str = caps
         .get(7)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str();
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else if let Some(caps) = RegexBuilder::new(
+      r"([0-9]+)\s*%(\s+μ[έε]γιστο(ς)?)?(\s+συντελεστ[ήη](ς)?)?\s+κ[αά]λυψη(ς)?",
+    )
+    .case_insensitive(true)
+    .build()
+    .expect("Couldn't parse regex")
+    .captures(from)
+    {
+      let cover_str = caps
+        .get(1)
         .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
         .as_str();
       Some(cover_str.parse().map_err(|e| Error::from(e))?)
@@ -325,24 +338,51 @@ mod test {
 
   #[test]
   fn coverage_parser() {
-    let cases = vec![
-      "42%  maxImum coverage   CoeFficieNt",
-      "42 %  buiLDinG  coVerage",
-      "42%\tcover faCTor",
-      "42%\ncoverCge",
-      "cOVERAGe coefficient of 42%",
-      "coveragE coEFFiCient : 42 %",
-      "CoverAge is 42%",
-      "BUILDiNG COVERAGe\n\t42 %",
-      "maximum\tcoverage      coefficient 42%",
-      "Κάλυψη: 42%",
-      "συντελεστή κάλυψης 42%",
-    ];
+    for max in vec!["", "max", "maximum"] {
+      for build in vec!["", "build", "building"] {
+        for cover in vec!["cover", "coverage"] {
+          for factor in vec!["", "coefficient", "factor "] {
+            for space in vec!["", " ", "\t"] {
+              for of in vec!["", "of", "is"] {
+                for colon in vec!["", ":"] {
+                  let lowercase = format!(
+                    "{} {} {} {} {} {} 42{}%",
+                    max, build, cover, factor, of, colon, space
+                  );
+                  let uppercase = lowercase.to_uppercase();
+                  assert_eq!(parse_coverage(&lowercase).expect("Whoops.."), Some(42));
+                  assert_eq!(parse_coverage(&uppercase).expect("Whoops.."), Some(42));
+                }
+              }
+              let lowercase = format!("42{}% {} {} {} {}", space, max, build, cover, factor,);
+              let uppercase = lowercase.to_uppercase();
+              assert_eq!(parse_coverage(&lowercase).expect("Whoops.."), Some(42));
+              assert_eq!(parse_coverage(&uppercase).expect("Whoops.."), Some(42));
+            }
+          }
+        }
+      }
+    }
 
-    for case in cases.into_iter() {
-      if parse_coverage(case).expect("OOPS") != Some(42) {
-        panic!("Couldn't parse \"{}\"", case);
-      };
+    for max in vec!["", "μεγιστο", "μέγιστο", "μεγιστος", "μέγιστος"]
+    {
+      for factor in vec!["", "συντελεστη", "συντελεστή", "συντελεστης", "συντελεστής"]
+      {
+        for cover in vec!["καλυψη", "κάλυψη", "καλυψης", "κάλυψης"] {
+          for space in vec!["", " ", "\t"] {
+            for colon in vec!["", ":"] {
+              let lowercase = format!("{} {} {} {} 42{}%", max, factor, cover, colon, space);
+              let uppercase = lowercase.to_uppercase();
+              assert_eq!(parse_coverage(&lowercase).expect("Whoops.."), Some(42));
+              assert_eq!(parse_coverage(&uppercase).expect("Whoops.."), Some(42));
+            }
+            let lowercase = format!("42{}% {} {} {}", space, max, factor, cover);
+            let uppercase = lowercase.to_uppercase();
+            assert_eq!(parse_coverage(&lowercase).expect("Whoops.."), Some(42));
+            assert_eq!(parse_coverage(&uppercase).expect("Whoops.."), Some(42));
+          }
+        }
+      }
     }
   }
 }
