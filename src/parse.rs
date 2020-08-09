@@ -208,7 +208,7 @@ pub fn parse_bazaraki(html: &Html, url: &Url) -> Result<Listing, Error> {
       let height = parse_height(&desc_html)?;
 
       // TODO: Parse storeys
-      let storeys = None;
+      let storeys = parse_storeys(&desc_html)?;
 
       Ok(Listing::Plot(Plot::new(
         id,
@@ -350,6 +350,26 @@ fn parse_density(from: &str) -> Result<Option<u32>, Error> {
 fn parse_height(from: &str) -> Result<Option<f32>, Error> {
   Ok(
     if let Some(caps) = RegexBuilder::new(r"([0-9]+([.,][0-9]+)?)\s*m")
+      .case_insensitive(true)
+      .build()
+      .expect("Couldn't parse regex")
+      .captures(from)
+    {
+      let cover_str = caps
+        .get(1)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str()
+        .replace(",", ".");
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else {
+      None
+    },
+  )
+}
+
+fn parse_storeys(from: &str) -> Result<Option<u32>, Error> {
+  Ok(
+    if let Some(caps) = RegexBuilder::new(r"([0-9]+)\s*((floors?)|(storeys?)|([όο]ρ[όο]φο(υς)?))")
       .case_insensitive(true)
       .build()
       .expect("Couldn't parse regex")
@@ -526,6 +546,25 @@ mod test {
         assert_eq!(parse_height(&lowercase).expect(&lowercase), Some(4.2_f32));
         assert_eq!(parse_height(&uppercase).expect(&lowercase), Some(4.2_f32));
       }
+    }
+  }
+
+  #[test]
+  fn storeys_parser() {
+    let cases = vec![
+      "42 ορόφους",
+      "42 ορόφο",
+      "42 όροφο",
+      "42 floors",
+      "42 floor",
+      "42 storeys",
+      "42 storey",
+    ];
+    for case in cases.into_iter() {
+      let lowercase = case.to_lowercase();
+      let uppercase = case.to_uppercase();
+      assert_eq!(parse_storeys(&lowercase).expect(&lowercase), Some(42));
+      assert_eq!(parse_storeys(&uppercase).expect(&uppercase), Some(42));
     }
   }
 }
