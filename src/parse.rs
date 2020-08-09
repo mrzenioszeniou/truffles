@@ -201,8 +201,8 @@ pub fn parse_bazaraki(html: &Html, url: &Url) -> Result<Listing, Error> {
       // Parse coverage
       let coverage = parse_coverage(&desc_html)?;
 
-      // TODO: Parse density
-      let density = None;
+      // Parse density
+      let density = parse_density(&desc_html)?;
 
       // TODO: Parse height
       let height = None;
@@ -286,6 +286,65 @@ fn parse_coverage(from: &str) -> Result<Option<u32>, Error> {
       None
     },
   )
+}
+
+fn parse_density(from: &str) -> Result<Option<u32>, Error> {
+  Ok(
+  if let Some(caps) = RegexBuilder::new(
+      r"([0-9]+)\s*%(\s+max(imum)?)?\s*(((build(ing)?)?\s*density)|(build(ing)?\s*(density)?))",
+    )
+    .case_insensitive(true)
+    .build()
+    .expect("Couldn't parse regex")
+    .captures(from)
+    {
+      let cover_str = caps
+        .get(1)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str();
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else if let Some(caps) = RegexBuilder::new(
+      r"(max(imum)?\s+)?(((build(ing)?)?\s*density\s*)|(build(ing)?\s*(density)?\s*))(((coefficient)|(factor))\s+)?(is\s+)?(of\s+)?(:\s*)?([0-9]+)\s*%",
+    )
+    .case_insensitive(true)
+    .build()
+    .expect("Couldn't parse regex")
+    .captures(from)
+    {
+      let cover_str = caps
+        .get(17)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str();
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else if let Some(caps) = RegexBuilder::new(
+      r"(μ[έε]γιστο(ς)?\s+)?(συντελεστ[ήη](ς)?\s+)?δ[όο]μηση(ς)?\s*(:\s*)?([0-9]+)\s*%",
+    )
+    .case_insensitive(true)
+    .build()
+    .expect("Couldn't parse regex")
+    .captures(from)
+    {
+      let cover_str = caps
+        .get(7)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str();
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else if let Some(caps) = RegexBuilder::new(
+      r"([0-9]+)\s*%(\s+μ[έε]γιστο(ς)?)?(\s+συντελεστ[ήη](ς)?)?\s+δ[όο]μηση(ς)?",
+    )
+    .case_insensitive(true)
+    .build()
+    .expect("Couldn't parse regex")
+    .captures(from)
+    {
+      let cover_str = caps
+        .get(1)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str();
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else {
+      None
+    })
 }
 
 #[cfg(test)]
@@ -380,6 +439,58 @@ mod test {
             let uppercase = lowercase.to_uppercase();
             assert_eq!(parse_coverage(&lowercase).expect("Whoops.."), Some(42));
             assert_eq!(parse_coverage(&uppercase).expect("Whoops.."), Some(42));
+          }
+        }
+      }
+    }
+  }
+
+  #[test]
+  fn density_parser() {
+    for max in vec!["", "max", "maximum"] {
+      for build in vec![
+        "build",
+        "building",
+        "density",
+        "build density",
+        "building density",
+      ] {
+        for factor in vec!["", "coefficient", "factor "] {
+          for space in vec!["", " ", "\t"] {
+            for of in vec!["", "of", "is"] {
+              for colon in vec!["", ":"] {
+                let lowercase =
+                  format!("{} {} {} {} {} 42{}%", max, build, factor, of, colon, space);
+                let uppercase = lowercase.to_uppercase();
+                assert_eq!(parse_density(&lowercase).expect(&lowercase), Some(42));
+                assert_eq!(parse_density(&uppercase).expect(&uppercase), Some(42));
+              }
+            }
+            let lowercase = format!("42{}% {} {}", space, max, build);
+            let uppercase = lowercase.to_uppercase();
+            assert_eq!(parse_density(&lowercase).expect(&lowercase), Some(42));
+            assert_eq!(parse_density(&uppercase).expect(&uppercase), Some(42));
+          }
+        }
+      }
+    }
+
+    for max in vec!["", "μεγιστο", "μέγιστο", "μεγιστος", "μέγιστος"]
+    {
+      for factor in vec!["", "συντελεστη", "συντελεστή", "συντελεστης", "συντελεστής"]
+      {
+        for dense in vec!["δομηση", "δόμηση", "δομησης", "δόμησης"] {
+          for space in vec!["", " ", "\t"] {
+            for colon in vec!["", ":"] {
+              let lowercase = format!("{} {} {} {} 42{}%", max, factor, dense, colon, space);
+              let uppercase = lowercase.to_uppercase();
+              assert_eq!(parse_density(&lowercase).expect(&lowercase), Some(42));
+              assert_eq!(parse_density(&uppercase).expect(&uppercase), Some(42));
+            }
+            let lowercase = format!("42{}% {} {} {}", space, max, factor, dense);
+            let uppercase = lowercase.to_uppercase();
+            assert_eq!(parse_density(&lowercase).expect(&lowercase), Some(42));
+            assert_eq!(parse_density(&uppercase).expect(&uppercase), Some(42));
           }
         }
       }
