@@ -204,8 +204,8 @@ pub fn parse_bazaraki(html: &Html, url: &Url) -> Result<Listing, Error> {
       // Parse density
       let density = parse_density(&desc_html)?;
 
-      // TODO: Parse height
-      let height = None;
+      // Parse height
+      let height = parse_height(&desc_html)?;
 
       // TODO: Parse storeys
       let storeys = None;
@@ -345,6 +345,26 @@ fn parse_density(from: &str) -> Result<Option<u32>, Error> {
     } else {
       None
     })
+}
+
+fn parse_height(from: &str) -> Result<Option<f32>, Error> {
+  Ok(
+    if let Some(caps) = RegexBuilder::new(r"([0-9]+([.,][0-9]+)?)\s*m")
+      .case_insensitive(true)
+      .build()
+      .expect("Couldn't parse regex")
+      .captures(from)
+    {
+      let cover_str = caps
+        .get(1)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str()
+        .replace(",", ".");
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else {
+      None
+    },
+  )
 }
 
 #[cfg(test)]
@@ -493,6 +513,18 @@ mod test {
             assert_eq!(parse_density(&uppercase).expect(&uppercase), Some(42));
           }
         }
+      }
+    }
+  }
+
+  #[test]
+  fn height_parser() {
+    for space in vec!["", " ", "\t"] {
+      for delimiter in vec![",", "."] {
+        let lowercase = format!("4{}2{}m", delimiter, space);
+        let uppercase = lowercase.to_uppercase();
+        assert_eq!(parse_height(&lowercase).expect(&lowercase), Some(4.2_f32));
+        assert_eq!(parse_height(&uppercase).expect(&lowercase), Some(4.2_f32));
       }
     }
   }
