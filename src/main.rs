@@ -34,6 +34,7 @@ use log::LevelFilter;
 use structopt::StructOpt;
 
 use std::collections::HashSet;
+use std::time::Duration;
 
 use crate::area::Area;
 use crate::cache::Cache;
@@ -69,9 +70,16 @@ struct Args {
   #[structopt(
     short = "k",
     long = "kind",
-    help = "Onlt fetch listings of a specific kind [options: plot|property]"
+    help = "Only fetch listings of a specific kind [options: plot|property]"
   )]
   kind: Option<Kind>,
+
+  #[structopt(
+    short = "t",
+    long = "throttle",
+    help = "An interval (in milliseconds) to wait for between HTTP requests. Defaults to 1000ms"
+  )]
+  throttling: Option<u64>,
 }
 
 #[tokio::main]
@@ -80,7 +88,10 @@ async fn main() -> Result<(), String> {
   let args: Args = Args::from_args();
 
   // Initial engine
-  let mut engine = Engine::new(args.level);
+  let mut engine = Engine::new(
+    args.level,
+    args.throttling.map(|ms| Duration::from_millis(ms)),
+  );
 
   // Load cache
   let mut cache = Cache::load();

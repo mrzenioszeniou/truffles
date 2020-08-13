@@ -5,6 +5,7 @@ use simplelog::{ConfigBuilder, LevelPadding, WriteLogger};
 
 use std::fs::{create_dir_all, OpenOptions};
 use std::path::PathBuf;
+use std::time::Duration;
 
 use crate::area::Area;
 use crate::listing::{Kind, Listing};
@@ -21,9 +22,9 @@ pub struct Engine {
 }
 
 impl Engine {
-  pub fn new(log_level: LevelFilter) -> Self {
+  pub fn new(log_level: LevelFilter, throttling: Option<Duration>) -> Self {
     let client = Client::new();
-    let throttler = Throttler::new(None);
+    let throttler = Throttler::new(throttling);
 
     let path = dirs::home_dir()
       .expect("Couldn't get home directory")
