@@ -207,7 +207,7 @@ pub fn parse_bazaraki(html: &Html, url: &Url) -> Result<Listing, Error> {
       // Parse height
       let height = parse_height(&desc_html)?;
 
-      // TODO: Parse storeys
+      // Parse storeys
       let storeys = parse_storeys(&desc_html)?;
 
       Ok(Listing::Plot(Plot::new(
@@ -349,7 +349,7 @@ fn parse_density(from: &str) -> Result<Option<u32>, Error> {
 
 fn parse_height(from: &str) -> Result<Option<f32>, Error> {
   Ok(
-    if let Some(caps) = RegexBuilder::new(r"([0-9]+([.,][0-9]+)?)\s*m")
+    if let Some(caps) = RegexBuilder::new(r"([0-9]+([.,][0-9]+)?)\s*((m)|(meter)|(mtr))(s)?\s*(max(imum)?)?\s*((permitted)|(allowed))?\s*((height)|(high))")
       .case_insensitive(true)
       .build()
       .expect("Couldn't parse regex")
@@ -361,7 +361,43 @@ fn parse_height(from: &str) -> Result<Option<f32>, Error> {
         .as_str()
         .replace(",", ".");
       Some(cover_str.parse().map_err(|e| Error::from(e))?)
-    } else {
+    } else if let Some(caps) = RegexBuilder::new(r"(max(imum)?)?\s*((permitted)|(allowed))?\s*((height)|(high))\s*(is)?\s*(of)?\s*(:)?\s*([0-9]+([.,][0-9]+)?)\s*m")
+      .case_insensitive(true)
+      .build()
+      .expect("Couldn't parse regex")
+      .captures(from)
+    {
+      let cover_str = caps
+        .get(12)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str()
+        .replace(",", ".");
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else if let Some(caps) = RegexBuilder::new(r"([0-9]+([.,][0-9]+)?)\s*(([μm])|(μ[εέ]τρα))\s*(μ[εέ]γιστο)?\s*(επιτρεπ[όο]μενο)?\s*([ύυ]ψος)")
+      .case_insensitive(true)
+      .build()
+      .expect("Couldn't parse regex")
+      .captures(from)
+    {
+      let cover_str = caps
+        .get(1)
+        .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+        .as_str()
+        .replace(",", ".");
+      Some(cover_str.parse().map_err(|e| Error::from(e))?)
+    } else if let Some(caps) = RegexBuilder::new(r"(μ[εέ]γιστο)?\s*(επιτρεπ[όο]μενο)?\s*([ύυ]ψος)\s*(ε[ιί]ναι)?\s*(:)?\s*([0-9]+([.,][0-9]+)?)\s*[mμ]")
+      .case_insensitive(true)
+      .build()
+      .expect("Couldn't parse regex")
+      .captures(from)
+    {
+    let cover_str = caps
+      .get(6)
+      .ok_or(Error::from("INTERNAL ERROR: Matched regex but not group"))?
+      .as_str()
+      .replace(",", ".");
+    Some(cover_str.parse().map_err(|e| Error::from(e))?)
+  } else {
       None
     },
   )
@@ -369,11 +405,12 @@ fn parse_height(from: &str) -> Result<Option<f32>, Error> {
 
 fn parse_storeys(from: &str) -> Result<Option<u32>, Error> {
   Ok(
-    if let Some(caps) = RegexBuilder::new(r"([0-9]+)\s*((floors?)|(storeys?)|([όο]ρ[όο]φο(υς)?))")
-      .case_insensitive(true)
-      .build()
-      .expect("Couldn't parse regex")
-      .captures(from)
+    if let Some(caps) =
+      RegexBuilder::new(r"([0-9]+)\s*(max(imum)?)?\s*((floors?)|(storeys?)|([όο]ρ[όο]φο(υς)?))")
+        .case_insensitive(true)
+        .build()
+        .expect("Couldn't parse regex")
+        .captures(from)
     {
       let cover_str = caps
         .get(1)
@@ -539,12 +576,85 @@ mod test {
 
   #[test]
   fn height_parser() {
-    for space in vec!["", " ", "\t"] {
-      for delimiter in vec![",", "."] {
-        let lowercase = format!("4{}2{}m", delimiter, space);
-        let uppercase = lowercase.to_uppercase();
-        assert_eq!(parse_height(&lowercase).expect(&lowercase), Some(4.2_f32));
-        assert_eq!(parse_height(&uppercase).expect(&lowercase), Some(4.2_f32));
+    for max in vec!["", "max", "maximum"] {
+      for permitted in vec!["", "permitted", "allowed"] {
+        for height in vec!["height", "high"] {
+          for delimiter in vec![",", "."] {
+            for space in vec!["", " ", "\t"] {
+              for meters in vec!["m", "meters", "mtr"] {
+                for of in vec!["", "of", "is"] {
+                  for colon in vec!["", ":"] {
+                    let lowercase = format!(
+                      "{} {} {} {} {} 4{}2{}{}",
+                      max, permitted, height, of, colon, delimiter, space, meters
+                    );
+                    let uppercase = lowercase.to_uppercase();
+                    assert_eq!(parse_height(&lowercase).expect(&lowercase), Some(4.2_f32));
+                    assert_eq!(parse_height(&uppercase).expect(&uppercase), Some(4.2_f32));
+                  }
+                }
+                let lowercase = format!(
+                  "4{}2{}{} {} {} {}",
+                  delimiter, space, meters, max, permitted, height
+                );
+                let uppercase = lowercase.to_uppercase();
+                assert_eq!(
+                  parse_height(&lowercase).expect(&lowercase),
+                  Some(4.2_f32),
+                  "{}",
+                  lowercase
+                );
+                assert_eq!(
+                  parse_height(&uppercase).expect(&uppercase),
+                  Some(4.2_f32),
+                  "{}",
+                  uppercase
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+
+    for max in vec!["", "μέγιστο", "μεγιστο"] {
+      for permitted in vec!["", "επιτρεπόμενο", "επιτρεπομενο"] {
+        for height in vec!["ύψος", "υψος"] {
+          for delimiter in vec![",", "."] {
+            for space in vec!["", " ", "\t"] {
+              for meters in vec!["m", "μ", "μέτρα", "μετρα"] {
+                for of in vec!["", "είναι", "ειναι"] {
+                  for colon in vec!["", ":"] {
+                    let lowercase = format!(
+                      "{} {} {} {} {} 4{}2{}{}",
+                      max, permitted, height, of, colon, delimiter, space, meters
+                    );
+                    let uppercase = lowercase.to_uppercase();
+                    assert_eq!(parse_height(&lowercase).expect(&lowercase), Some(4.2_f32));
+                    assert_eq!(parse_height(&uppercase).expect(&uppercase), Some(4.2_f32));
+                  }
+                }
+                let lowercase = format!(
+                  "4{}2{}{} {} {} {}",
+                  delimiter, space, meters, max, permitted, height
+                );
+                let uppercase = lowercase.to_uppercase();
+                assert_eq!(
+                  parse_height(&lowercase).expect(&lowercase),
+                  Some(4.2_f32),
+                  "{}",
+                  lowercase
+                );
+                assert_eq!(
+                  parse_height(&uppercase).expect(&uppercase),
+                  Some(4.2_f32),
+                  "{}",
+                  uppercase
+                );
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -559,6 +669,10 @@ mod test {
       "42 floor",
       "42 storeys",
       "42 storey",
+      "42 max floors",
+      "42 maximum floor",
+      "42 max storeys",
+      "42 maximum storey",
     ];
     for case in cases.into_iter() {
       let lowercase = case.to_lowercase();
